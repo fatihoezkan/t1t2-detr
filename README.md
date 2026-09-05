@@ -112,6 +112,14 @@ compartments (T1, T2, w) --forward model--> 64-point signal --noise--> parquet r
                                                                                      t1t2/runs.py, evaluation/
 ```
 
+Training, from the YAML config to a scored run:
+
+![Training: from a YAML file to a scored run](docs/img/training.png)
+
+Inference, from one voxel to its compartments:
+
+![Inference: from one voxel to its compartments](docs/img/inference.png)
+
 | module | what it does |
 |---|---|
 | `datagen/voxel_simulator` | random compartments with T1 > T2, the inversion-recovery multi-echo forward model, signed Gaussian noise, seeded splits, a manifest per family |
