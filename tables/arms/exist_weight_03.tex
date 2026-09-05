@@ -1,0 +1,23 @@
+\renewcommand{\arraystretch}{1.05}
+\begin{tabular}{lrrr}
+\toprule
+ & Reference & \texttt{exist\_weight\_03} & $\Delta$ \\
+\midrule
+Strict accuracy 2D, $\theta = 0.50$ (\%) & 47.35 & 42.52 & \textbf{-4.83} \\
+Strict accuracy 2D, $\theta = 0.75$ (\%) & 55.91 & 52.45 & \textbf{-3.46} \\
+Strict accuracy 3D, $\theta = 0.50$ (\%) & 44.93 & 40.18 & \textbf{-4.75} \\
+Strict accuracy 3D, $\theta = 0.75$ (\%) & 52.56 & 49.23 & \textbf{-3.32} \\
+\midrule
+mAP@7, 2D (no threshold) & 0.6671 & 0.6705 & +0.0034 \\
+mAP@7, 3D (no threshold) & 0.4859 & 0.4380 & \textbf{-0.0479} \\
+\midrule
+Count accuracy, $\theta = 0.75$ (\%) & 78.91 & 79.28 & +0.37 \\
+\midrule
+\multicolumn{4}{l}{\emph{At the run's own fitted $\theta$ (not comparable between runs)}} \\
+\quad fitted $\theta$ & 0.77 & 0.58 & --- \\
+\quad median rel.\ $T_1$ error (\%) & 5.40 & 6.45 & +1.05 \\
+\quad smallest compartments, rel.\ $T_1$ (\%) & 30.79 & 38.98 & \textbf{+8.20} \\
+\midrule
+\multicolumn{4}{l}{\textbf{Verdict at the declared $\theta$:} worse} \\
+\bottomrule
+\end{tabular}

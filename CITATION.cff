@@ -1,0 +1,47 @@
+cff-version: 1.2.0
+title: "T1T2-DETR: Detection Transformer for microstructure quantification from T1-T2 correlation MRI"
+message: "If you use this software, please cite both the software and the thesis it accompanies."
+type: software
+authors:
+  - family-names: "Özkan"
+    given-names: "Fatih"
+repository-code: "https://github.com/fatihoezkan/t1t2-detr"
+license: MIT
+version: "1.1.0"
+date-released: "2026-09-04"
+keywords:
+  - MRI
+  - relaxometry
+  - T1-T2 correlation
+  - detection transformer
+  - set prediction
+  - Hungarian matching
+  - microstructure
+references:
+  - type: thesis
+    title: "Detection Transformer for Microstructure Quantification from T1-T2 Correlation MRI"
+    authors:
+      - family-names: "Özkan"
+        given-names: "Fatih"
+    thesis-type: "Bachelor's thesis"
+    institution:
+      name: "Technische Hochschule Ingolstadt"
+    year: 2026
+  - type: conference-paper
+    title: "End-to-End Object Detection with Transformers"
+    authors:
+      - family-names: "Carion"
+        given-names: "Nicolas"
+      - family-names: "Massa"
+        given-names: "Francisco"
+      - family-names: "Synnaeve"
+        given-names: "Gabriel"
+      - family-names: "Usunier"
+        given-names: "Nicolas"
+      - family-names: "Kirillov"
+        given-names: "Alexander"
+      - family-names: "Zagoruyko"
+        given-names: "Sergey"
+    collection-title: "European Conference on Computer Vision (ECCV)"
+    year: 2020
+    doi: "10.1007/978-3-030-58452-8_13"

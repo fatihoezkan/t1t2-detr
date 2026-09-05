@@ -1,0 +1,84 @@
+name: data_loguniform
+data:
+  train_path:
+  - data/t1_loguniform_100k/n1/train.parquet
+  - data/t1_loguniform_100k/n2/train.parquet
+  - data/t1_loguniform_100k/n3/train.parquet
+  val_path:
+  - data/t1_loguniform_100k/n1/val.parquet
+  - data/t1_loguniform_100k/n2/val.parquet
+  - data/t1_loguniform_100k/n3/val.parquet
+  test_path:
+  - data/t1_loguniform_100k/n1/test.parquet
+  - data/t1_loguniform_100k/n2/test.parquet
+  - data/t1_loguniform_100k/n3/test.parquet
+  n_inputs: 64
+  train_limit_per_path: null
+  normalization: log_minmax
+  t1_min: 50.0
+  t1_max: 3500.0
+  t2_min: 5.0
+  t2_max: 500.0
+  signal_norm: max
+model:
+  input_dim: 64
+  hidden_dim: 512
+  fs_dim: 256
+  n_queries: 10
+  n_dlayers: 4
+  n_heads: 4
+  aux_loss: false
+  exist_head: joint
+  pretrain_path: null
+  freeze_encoder: false
+loss:
+  t1_weight: 1.0
+  t2_weight: 1.0
+  w_weight: 1.0
+  exist_weight: 0.1
+  aux_weight: 1.0
+  t1_t2_weighting: signal_fraction
+  signal_consistency: false
+  signal_consistency_weight: 0.0
+  signal_consistency_type: mse
+train:
+  epochs: 500
+  batch_size: 512
+  lr: 0.0001
+  weight_decay: 0.0001
+  opt_betas:
+  - 0.9
+  - 0.98
+  early_stopping: true
+  early_stopping_patience: 35
+  early_stopping_min_delta: 1.0e-05
+  selection_metric: parameter_loss
+  lr_scheduler: reduce_on_plateau
+  scheduler_factor: 0.5
+  scheduler_patience: 7
+  scheduler_min_lr: 1.0e-06
+  gradient_clip_norm: 1.0
+  device: null
+  seed: 20260724
+  num_workers: 4
+  ckpt_every: 1
+evaluation:
+  calibrate_threshold: true
+  fixed_threshold: 0.5
+  threshold_objective: parameter_set_error
+  threshold_min: 0.05
+  threshold_max: 0.95
+  threshold_steps: 91
+notes: |
+  Changed: the dataset only. Model, loss and training settings are untouched.
+
+  The reference sampler draws log T1 and log T2 independently and rejects pairs with T2 > T1.
+  The accepted pairs are uniform over the feasible region, which leaves neither marginal
+  log-uniform: short T1 is undersampled. This arm trains and tests on a family where log T1
+  is exactly log-uniform, which removes T1 coverage as an explanation for any T1-dependent
+  error trend.
+
+  It is scored on a different voxel family, so its deltas are not a controlled comparison:
+  they contain the sampling change and the difference between two independent draws. Its
+  base seed is 3500501 against the reference's 3500500; reusing the seed would have given
+  both families bit-identical noise and coupled the comparison.

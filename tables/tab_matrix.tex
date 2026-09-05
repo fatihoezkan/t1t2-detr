@@ -1,0 +1,21 @@
+\begin{tabular}{llrrrrrl}
+\toprule
+\multirow{2}{*}{Run} & \multirow{2}{*}{What was changed} & \multicolumn{2}{c}{strict acc.\ 2D} & \multicolumn{2}{c}{strict acc.\ 3D} & \multirow{2}{*}{mAP@7} & \multirow{2}{*}{Verdict$^{\dagger}$} \\
+\cmidrule(lr){3-4}\cmidrule(lr){5-6}
+ & & $\theta{=}.50$ & $\theta{=}.75$ & $\theta{=}.50$ & $\theta{=}.75$ & & \\
+\midrule
+reference & --- & 47.35 & 55.91 & 44.93 & 52.56 & 0.6671 & --- \\
+\midrule
+\texttt{loss\_uniform} & uniform loss weight & \textbf{57.30} & \textbf{61.82} & \textbf{53.79} & \textbf{57.26} & \textbf{0.7719} & better \\
+\texttt{data\_loguniform} & log-uniform $T_1$ & 48.24 & 56.11 & 45.79 & 52.81 & 0.6684 & no effect \\
+\texttt{queries\_6} & 6 queries & \textbf{55.05} & \textbf{57.42} & \textbf{51.79} & \textbf{53.72} & 0.6604 & better \\
+\texttt{queries\_4} & 4 queries & \textbf{56.14} & \textbf{57.11} & \textbf{52.21} & 52.65 & 0.6529 & better \\
+\texttt{aux\_loss} & aux.\ decoder losses & 49.16 & 56.30 & 46.78 & 53.25 & 0.6721 & no effect \\
+\texttt{exist\_weight\_03} & exist.\ weight 0.3 & \textbf{42.52} & \textbf{52.45} & \textbf{40.18} & \textbf{49.23} & 0.6705 & worse \\
+\texttt{decoder\_2} & 2 decoder layers & 47.88 & 55.48 & 45.43 & 52.29 & 0.6581 & no effect \\
+\texttt{decoder\_6} & 6 decoder layers & 45.83 & 55.27 & 43.50 & 51.74 & 0.6604 & no effect \\
+\texttt{exist\_head\_shared} & shared exist.\ head & 48.10 & 55.55 & 45.65 & 52.41 & 0.6643 & no effect \\
+\texttt{physics\_clean} & consistency, clean target & 47.43 & 56.11 & 45.33 & 52.99 & 0.6672 & no effect \\
+\texttt{physics\_noisy} & consistency, measured target & 47.98 & 56.20 & 45.55 & 52.88 & 0.6751 & no effect \\
+\bottomrule
+\end{tabular}

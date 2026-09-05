@@ -1,0 +1,98 @@
+name: baseline_v3
+data:
+  train_path:
+  - data/t1_3500_t2_500_100k/n1/train.parquet
+  - data/t1_3500_t2_500_100k/n2/train.parquet
+  - data/t1_3500_t2_500_100k/n3/train.parquet
+  val_path:
+  - data/t1_3500_t2_500_100k/n1/val.parquet
+  - data/t1_3500_t2_500_100k/n2/val.parquet
+  - data/t1_3500_t2_500_100k/n3/val.parquet
+  test_path:
+  - data/t1_3500_t2_500_100k/n1/test.parquet
+  - data/t1_3500_t2_500_100k/n2/test.parquet
+  - data/t1_3500_t2_500_100k/n3/test.parquet
+  n_inputs: 64
+  train_limit_per_path: null
+  normalization: log_minmax
+  t1_min: 50.0
+  t1_max: 3500.0
+  t2_min: 5.0
+  t2_max: 500.0
+  signal_norm: max
+model:
+  input_dim: 64
+  hidden_dim: 512
+  fs_dim: 256
+  n_queries: 6
+  n_dlayers: 2
+  n_heads: 4
+  aux_loss: false
+  exist_head: shared
+  pretrain_path: null
+  freeze_encoder: false
+loss:
+  t1_weight: 1.0
+  t2_weight: 1.0
+  w_weight: 1.0
+  exist_weight: 0.1
+  aux_weight: 1.0
+  t1_t2_weighting: sqrt
+  signal_consistency: true
+  signal_consistency_weight: 1.0
+  signal_consistency_type: mse
+  signal_consistency_target: noisy
+  signal_consistency_warmup_epochs: 10
+train:
+  epochs: 500
+  batch_size: 512
+  lr: 0.0001
+  weight_decay: 0.0001
+  opt_betas:
+  - 0.9
+  - 0.98
+  early_stopping: true
+  early_stopping_patience: 35
+  early_stopping_min_delta: 1.0e-05
+  selection_metric: parameter_loss
+  lr_scheduler: reduce_on_plateau
+  scheduler_factor: 0.5
+  scheduler_patience: 7
+  scheduler_min_lr: 1.0e-06
+  gradient_clip_norm: 1.0
+  device: null
+  seed: 20260724
+  num_workers: 4
+  ckpt_every: 1
+evaluation:
+  calibrate_threshold: true
+  fixed_threshold: 0.5
+  threshold_objective: parameter_set_error
+  threshold_min: 0.05
+  threshold_max: 0.95
+  threshold_steps: 91
+notes: "COMBINED MODEL \u2014 not an ablation. Four changes at once, each individually\
+  \ motivated by the\ncompleted matrix, interactions never measured. Label it accordingly\
+  \ in the thesis.\n\nChanges vs baseline_v2_reproduction:\n  1. model.n_dlayers \
+  \     4 -> 2       (depth sweep was null both ways; -1.6M params for free)\n  2.\
+  \ model.n_queries      10 -> 6      (query sweep was null; data max K=3, 6 keeps\
+  \ safe margin)\n  3. model.exist_head     joint -> shared  (best F1 in the matrix,\
+  \ simpler, -2.6% params;\n                                        single-seed /\
+  \ within-floor \u2014 treated as a bet here)\n  4. loss.t1_t2_weighting signal_fraction\
+  \ -> sqrt  (NEW mode: error factor sqrt(w) instead of w;\n                     \
+  \                   measured endpoints w and 1 both sacrifice something \u2014\n\
+  \                                        sqrt compresses the 15x gradient ratio\
+  \ to 3.9x)\n  5. loss.signal_consistency ON, target=noisy, weight 1.0, warmup 10\
+  \  (largest parameter-accuracy\n                                        gain of\
+  \ any arm, self-supervised, noise-fitting excluded)\n\nKept deliberately: aux_loss\
+  \ false (null), exist_weight 0.1 (0.3 trade not worth it),\nsame dataset (data_loguniform\
+  \ null), same seed/optimizer/selection as every arm.\n\nClaim this run tests: same\
+  \ counting accuracy from a smaller model, with clearly better\nparameter estimation.\n\
+  \nPre-registered success criteria (written before the run):\n  (a) count_accuracy\
+  \ >= 78.1  (reproduction 78.89 minus the 0.80 pp floor \u2014 no counting sacrifice)\n\
+  \  (b) smallest-band (w 0.05-0.10) median relative T1 error <= 25 %\n      (reproduction\
+  \ 30.79 %, uniform endpoint 22.00 %)\n  (c) pooled median absolute T1 error <= 27\
+  \ ms  (physics_noisy reached 26.71 ms)\nIf (a) fails, the combination is rejected\
+  \ regardless of (b)/(c). If only (b) fails, sqrt did\nnot deliver the midpoint and\
+  \ the weighting story stays two-endpoint. No single-change\nattribution is possible\
+  \ from this run either way.\n"

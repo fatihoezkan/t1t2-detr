@@ -1,0 +1,98 @@
+name: aux_loss
+data:
+  train_path:
+  - data/t1_3500_t2_500_100k/n1/train.parquet
+  - data/t1_3500_t2_500_100k/n2/train.parquet
+  - data/t1_3500_t2_500_100k/n3/train.parquet
+  val_path:
+  - data/t1_3500_t2_500_100k/n1/val.parquet
+  - data/t1_3500_t2_500_100k/n2/val.parquet
+  - data/t1_3500_t2_500_100k/n3/val.parquet
+  test_path:
+  - data/t1_3500_t2_500_100k/n1/test.parquet
+  - data/t1_3500_t2_500_100k/n2/test.parquet
+  - data/t1_3500_t2_500_100k/n3/test.parquet
+  n_inputs: 64
+  train_limit_per_path: null
+  normalization: log_minmax
+  t1_min: 50.0
+  t1_max: 3500.0
+  t2_min: 5.0
+  t2_max: 500.0
+  signal_norm: max
+model:
+  input_dim: 64
+  hidden_dim: 512
+  fs_dim: 256
+  n_queries: 10
+  n_dlayers: 4
+  n_heads: 4
+  aux_loss: true
+  exist_head: joint
+  pretrain_path: null
+  freeze_encoder: false
+loss:
+  t1_weight: 1.0
+  t2_weight: 1.0
+  w_weight: 1.0
+  exist_weight: 0.1
+  aux_weight: 1.0
+  t1_t2_weighting: signal_fraction
+  signal_consistency: false
+  signal_consistency_weight: 0.0
+  signal_consistency_type: mse
+train:
+  epochs: 500
+  batch_size: 512
+  lr: 0.0001
+  weight_decay: 0.0001
+  opt_betas:
+  - 0.9
+  - 0.98
+  early_stopping: true
+  early_stopping_patience: 35
+  early_stopping_min_delta: 1.0e-05
+  selection_metric: parameter_loss
+  lr_scheduler: reduce_on_plateau
+  scheduler_factor: 0.5
+  scheduler_patience: 7
+  scheduler_min_lr: 1.0e-06
+  gradient_clip_norm: 1.0
+  device: null
+  seed: 20260724
+  num_workers: 4
+  ckpt_every: 1
+evaluation:
+  calibrate_threshold: true
+  fixed_threshold: 0.5
+  threshold_objective: parameter_set_error
+  threshold_min: 0.05
+  threshold_max: 0.95
+  threshold_steps: 91
+notes: "CHANGED: model.aux_loss  false -> true.  Nothing else.\n(The field lives under\
+  \ `model:`, not `loss:`. loss.aux_weight already exists and stays 1.0.)\n\nWhat\
+  \ it does: with aux_loss on, the prediction heads are applied after EVERY decoder\
+  \ layer, not\nonly the last, and each intermediate prediction gets its own Hungarian\
+  \ loss. The layer losses ramp\nin by min((i+1) * aux_weight, 1.0), so later layers\
+  \ count fully and earlier ones are dialled down\n(train.py:103-107). This is standard\
+  \ DETR practice: Hungarian matching is unstable early in\ntraining because the assignment\
+  \ can flip between epochs, and supervising every layer gives the\nearlier layers\
+  \ a direct gradient instead of one relayed through the whole decoder stack.\n\n\
+  VERIFIED IMPLEMENTED, not assumed. model.py returns {\"pred\", \"aux\"} when the\
+  \ flag is on,\ntrain.py:103-107 consumes the dict and accumulates the per-layer\
+  \ losses, and eval.py:49 unwraps\nit. All three paths were read before this config\
+  \ was written. The arm therefore does something.\n\nCOST, measured locally on CPU\
+  \ at batch 512: a full training step is 1.28x the no-aux step, since\nthe loss (including\
+  \ the serial Hungarian solve) runs n_dlayers + 1 = 5 times per batch instead of\n\
+  once. Expect roughly 27 -> 35 minutes of wall time, so this is cheap.\n\nHypothesis:\
+  \ faster and more stable early convergence, and a better or equal final result.\
+  \ The\neffect may be small here \u2014 the baseline already trains stably to a clean\
+  \ early stop at epoch 137\nof 172 \u2014 in which case the honest reading is that\
+  \ this dataset is not hard enough to need it.\n\nMeasurement: history.json for the\
+  \ epoch at which validation parameter loss first drops below the\nbaseline's final\
+  \ 0.008263, and best_epoch / epochs_run from summary.json (baseline 137 / 172).\n\
+  Then metrics_detr.json for the final quality. POSITIVE (reaches the same loss in\
+  \ fewer epochs, or\na lower final loss): auxiliary supervision helps and matches\
+  \ the DETR literature. NEGATIVE (no\nchange): report that the stabilisation benefit\
+  \ does not materialise on a task this size, and that\nthe 1.28x step cost buys nothing\
+  \ \u2014 a useful, concrete negative for the ablation table.\n"

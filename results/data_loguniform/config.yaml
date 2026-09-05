@@ -1,0 +1,93 @@
+name: data_loguniform
+data:
+  train_path:
+  - data/t1_loguniform_100k/n1/train.parquet
+  - data/t1_loguniform_100k/n2/train.parquet
+  - data/t1_loguniform_100k/n3/train.parquet
+  val_path:
+  - data/t1_loguniform_100k/n1/val.parquet
+  - data/t1_loguniform_100k/n2/val.parquet
+  - data/t1_loguniform_100k/n3/val.parquet
+  test_path:
+  - data/t1_loguniform_100k/n1/test.parquet
+  - data/t1_loguniform_100k/n2/test.parquet
+  - data/t1_loguniform_100k/n3/test.parquet
+  n_inputs: 64
+  train_limit_per_path: null
+  normalization: log_minmax
+  t1_min: 50.0
+  t1_max: 3500.0
+  t2_min: 5.0
+  t2_max: 500.0
+  signal_norm: max
+model:
+  input_dim: 64
+  hidden_dim: 512
+  fs_dim: 256
+  n_queries: 10
+  n_dlayers: 4
+  n_heads: 4
+  aux_loss: false
+  exist_head: joint
+  pretrain_path: null
+  freeze_encoder: false
+loss:
+  t1_weight: 1.0
+  t2_weight: 1.0
+  w_weight: 1.0
+  exist_weight: 0.1
+  aux_weight: 1.0
+  t1_t2_weighting: signal_fraction
+  signal_consistency: false
+  signal_consistency_weight: 0.0
+  signal_consistency_type: mse
+train:
+  epochs: 500
+  batch_size: 512
+  lr: 0.0001
+  weight_decay: 0.0001
+  opt_betas:
+  - 0.9
+  - 0.98
+  early_stopping: true
+  early_stopping_patience: 35
+  early_stopping_min_delta: 1.0e-05
+  selection_metric: parameter_loss
+  lr_scheduler: reduce_on_plateau
+  scheduler_factor: 0.5
+  scheduler_patience: 7
+  scheduler_min_lr: 1.0e-06
+  gradient_clip_norm: 1.0
+  device: null
+  seed: 20260724
+  num_workers: 4
+  ckpt_every: 1
+evaluation:
+  calibrate_threshold: true
+  fixed_threshold: 0.5
+  threshold_objective: parameter_set_error
+  threshold_min: 0.05
+  threshold_max: 0.95
+  threshold_steps: 91
+notes: "CHANGED: the dataset only \u2014 data/t1_3500_t2_500_100k -> data/t1_loguniform_100k,\
+  \ in which T1 is\nexactly log-uniform. Model, loss and training settings are untouched.\n\
+  \nThe problem it addresses: the baseline's sampler draws T1 and T2 log-uniformly\
+  \ from their own\nranges and then REJECTS pairs with T2 >= T1 (sampler.py:sample_random_compartment).\
+  \ Rejection\nmakes the joint distribution uniform over the feasible triangular region,\
+  \ which means neither\nmarginal is log-uniform. The audit measured it: empirical\
+  \ log-T1 rejects log-uniformity decisively\n(KS D = 0.0835, p < 1e-300), with T1\
+  \ in [50,100) sampled at 0.66x and T1 in [500,3500) at 1.16x\nthe log-uniform expectation.\n\
+  \nTwo consequences. First, writing \"T1 was sampled log-uniformly\" in the thesis\
+  \ would be false as\nthe data stand. Second, the skew is a confounder for any T1-dependent\
+  \ error analysis: elevated\nerror at short T1 may partly reflect lower training\
+  \ density there rather than harder physics.\n\nHypothesis: aggregate metrics move\
+  \ little, because the skew is modest (0.66x-1.16x) and both\ndatasets cover the\
+  \ same support. The T1-resolved error curve, however, should flatten at short T1\n\
+  if training density was the cause of the elevated error there.\n\nMeasurement: aggregate\
+  \ metrics_detr.json for the overall effect, and the T1-resolved error curve\nfor\
+  \ the real question. POSITIVE (short-T1 error flattens): part of the baseline's\
+  \ T1-dependent\nerror was a sampling artefact, and the corrected dataset should\
+  \ be used for T1-dependent claims.\nNEGATIVE (curve keeps its shape): the T1 dependence\
+  \ is physical \u2014 short T1 is genuinely harder at\nthis protocol \u2014 which\
+  \ is a stronger and cleaner statement than the baseline can currently make.\nEither\
+  \ way the confounder is removed and the thesis can describe its sampling honestly.\n"

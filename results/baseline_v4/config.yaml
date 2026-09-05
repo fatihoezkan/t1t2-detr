@@ -1,0 +1,92 @@
+name: baseline_v4
+data:
+  train_path:
+  - data/t1_3500_t2_500_100k/n1/train.parquet
+  - data/t1_3500_t2_500_100k/n2/train.parquet
+  - data/t1_3500_t2_500_100k/n3/train.parquet
+  val_path:
+  - data/t1_3500_t2_500_100k/n1/val.parquet
+  - data/t1_3500_t2_500_100k/n2/val.parquet
+  - data/t1_3500_t2_500_100k/n3/val.parquet
+  test_path:
+  - data/t1_3500_t2_500_100k/n1/test.parquet
+  - data/t1_3500_t2_500_100k/n2/test.parquet
+  - data/t1_3500_t2_500_100k/n3/test.parquet
+  n_inputs: 64
+  train_limit_per_path: null
+  normalization: log_minmax
+  t1_min: 50.0
+  t1_max: 3500.0
+  t2_min: 5.0
+  t2_max: 500.0
+  signal_norm: max
+model:
+  input_dim: 64
+  hidden_dim: 512
+  fs_dim: 256
+  n_queries: 6
+  n_dlayers: 4
+  n_heads: 4
+  aux_loss: false
+  exist_head: shared
+  pretrain_path: null
+  freeze_encoder: false
+loss:
+  t1_weight: 1.0
+  t2_weight: 1.0
+  w_weight: 1.0
+  exist_weight: 0.1
+  aux_weight: 1.0
+  t1_t2_weighting: signal_fraction
+  signal_consistency: true
+  signal_consistency_weight: 1.0
+  signal_consistency_type: mse
+  signal_consistency_target: noisy
+  signal_consistency_warmup_epochs: 10
+train:
+  epochs: 500
+  batch_size: 512
+  lr: 0.0001
+  weight_decay: 0.0001
+  opt_betas:
+  - 0.9
+  - 0.98
+  early_stopping: true
+  early_stopping_patience: 35
+  early_stopping_min_delta: 1.0e-05
+  selection_metric: parameter_loss
+  lr_scheduler: reduce_on_plateau
+  scheduler_factor: 0.5
+  scheduler_patience: 7
+  scheduler_min_lr: 1.0e-06
+  gradient_clip_norm: 1.0
+  device: null
+  seed: 20260724
+  num_workers: 4
+  ckpt_every: 1
+evaluation:
+  calibrate_threshold: true
+  fixed_threshold: 0.5
+  threshold_objective: parameter_set_error
+  threshold_min: 0.05
+  threshold_max: 0.95
+  threshold_steps: 91
+notes: "COMBINED MODEL v4 \u2014 the decomposition-informed recipe. Three changes\
+  \ vs\nbaseline_v2_reproduction, everything else identical:\n  1. model.n_queries\
+  \    10 -> 6      (query sweep null; idle slots dropped)\n  2. model.exist_head\
+  \   joint -> shared  (best F1 in matrix, -2.6% params)\n  3. loss.signal_consistency\
+  \ ON, target=noisy, lambda=1.0, warmup 10\n     (carrier of the parameter-accuracy\
+  \ gain, proven by the v3 decomposition:\n      removing it moved median T1 from\
+  \ 25.45 to 30.03 ms)\n\nDeliberately NOT taken from v3: sqrt weighting (v3 decomposition\
+  \ showed it caused the\ncounting failure, -1.40 pp, while missing its own small-band\
+  \ target) and the 2-layer\ndecoder (user decision: stay at the baseline depth of\
+  \ 4; removes any residual\ninteraction suspicion from the v3 family).\n\nHistory:\
+  \ v3 (5 changes) failed pre-registered criterion (a) count>=78.1 at 77.49%.\nDecomposition\
+  \ arms no_sqrt/no_physics isolated the causes. v4 keeps the proven-good\nparts only.\
+  \ This is the decomposition-informed recipe, not iterative retrying: each\nremoval\
+  \ is justified by a single-change measurement.\n\nPre-registered success criteria\
+  \ (same protocol as v3):\n  (a) count_accuracy >= 78.1   (within the +-0.80 pp floor\
+  \ of reproduction 78.89)\n  (b) pooled median absolute T1 error <= 27 ms   (physics_noisy\
+  \ reached 26.71)\n  (c) existence F1 >= 0.944    (reproduction's value; shared head\
+  \ reached 0.946 alone)\nIf (a) fails, the combination is rejected regardless of\
+  \ (b)/(c).\n"

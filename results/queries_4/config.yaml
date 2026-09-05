@@ -1,0 +1,90 @@
+name: queries_4
+data:
+  train_path:
+  - data/t1_3500_t2_500_100k/n1/train.parquet
+  - data/t1_3500_t2_500_100k/n2/train.parquet
+  - data/t1_3500_t2_500_100k/n3/train.parquet
+  val_path:
+  - data/t1_3500_t2_500_100k/n1/val.parquet
+  - data/t1_3500_t2_500_100k/n2/val.parquet
+  - data/t1_3500_t2_500_100k/n3/val.parquet
+  test_path:
+  - data/t1_3500_t2_500_100k/n1/test.parquet
+  - data/t1_3500_t2_500_100k/n2/test.parquet
+  - data/t1_3500_t2_500_100k/n3/test.parquet
+  n_inputs: 64
+  train_limit_per_path: null
+  normalization: log_minmax
+  t1_min: 50.0
+  t1_max: 3500.0
+  t2_min: 5.0
+  t2_max: 500.0
+  signal_norm: max
+model:
+  input_dim: 64
+  hidden_dim: 512
+  fs_dim: 256
+  n_queries: 4
+  n_dlayers: 4
+  n_heads: 4
+  aux_loss: false
+  exist_head: joint
+  pretrain_path: null
+  freeze_encoder: false
+loss:
+  t1_weight: 1.0
+  t2_weight: 1.0
+  w_weight: 1.0
+  exist_weight: 0.1
+  aux_weight: 1.0
+  t1_t2_weighting: signal_fraction
+  signal_consistency: false
+  signal_consistency_weight: 0.0
+  signal_consistency_type: mse
+train:
+  epochs: 500
+  batch_size: 512
+  lr: 0.0001
+  weight_decay: 0.0001
+  opt_betas:
+  - 0.9
+  - 0.98
+  early_stopping: true
+  early_stopping_patience: 35
+  early_stopping_min_delta: 1.0e-05
+  selection_metric: parameter_loss
+  lr_scheduler: reduce_on_plateau
+  scheduler_factor: 0.5
+  scheduler_patience: 7
+  scheduler_min_lr: 1.0e-06
+  gradient_clip_norm: 1.0
+  device: null
+  seed: 20260724
+  num_workers: 4
+  ckpt_every: 1
+evaluation:
+  calibrate_threshold: true
+  fixed_threshold: 0.5
+  threshold_objective: parameter_set_error
+  threshold_min: 0.05
+  threshold_max: 0.95
+  threshold_steps: 91
+notes: "CHANGED: model.n_queries  10 -> 4.  Nothing else.\n\nThe tight end of the\
+  \ query sweep: 4 slots for at most 3 compartments, i.e. almost no slack. This\n\
+  is the arm that should break if slack matters, and it is only interpretable next\
+  \ to queries_6 and\nthe 10-query baseline \u2014 one point tells you nothing, three\
+  \ points give a curve.\n\nCONFOUNDER, must be stated when reporting: (a) parameter\
+  \ count 4,406,983 against 4,508,365, i.e.\n-2.25 %. (b) The existence positive weight\
+  \ clamp((n_queries - n_comp)/n_comp, 0.5, 10) is\nmaterially affected here: at n_comp\
+  \ = 3 it is 0.50 against the baseline's 2.33, and 0.50 is the\nCLAMP FLOOR \u2014\
+  \ the term stops up-weighting positives and starts down-weighting them. So a drop\
+  \ in\nexistence recall on 3-compartment voxels has two possible causes, too little\
+  \ capacity or the\naltered class balance, and this arm alone cannot separate them.\
+  \ Say so rather than over-reading it.\n\nHypothesis: 3-compartment voxels suffer\
+  \ most, because a query must be available for every\ncompartment simultaneously\
+  \ and there is only one spare slot.\n\nMeasurement: count_accuracy_n3 and existence_recall_n3\
+  \ from metrics_detr.json (baseline 66.6 %\nand 0.885), plus the overall three. POSITIVE\
+  \ (no degradation): the model needs barely more slots\nthan compartments, and the\
+  \ 10-query default is generous. NEGATIVE (n3 degrades): query slack is\nload-bearing;\
+  \ report it as the lower bound of a usable query budget and, given the confounder\n\
+  above, as capacity-or-class-balance rather than capacity alone.\n"

@@ -1,0 +1,17 @@
+# Runtime dependencies for the t1t2 package and the data generator.
+#
+# Torch is not listed here on purpose. Install the build that matches your machine:
+# `pip install torch` for CPU or Apple Silicon, or the CUDA wheel from pytorch.org for a GPU
+# node. Listing it here lets pip resolve it freely, which can replace a working CUDA build
+# with a CPU-only one.
+#
+# numpy is pinned exactly. The generator's reproducibility is a claim about a recorded
+# environment: NumPy does not guarantee Generator bit streams across versions, and each
+# dataset's manifest records the version that produced it.
+numpy==1.26.4
+pandas>=2.0
+pyarrow>=12.0
+scipy>=1.10
+pyyaml>=6.0
+matplotlib>=3.7
+pytest>=7.0

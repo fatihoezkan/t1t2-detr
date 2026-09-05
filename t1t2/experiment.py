@@ -1,0 +1,176 @@
+"""Run one experiment end to end: train, evaluate on the test split, write results/<name>/.
+
+    PYTHONPATH=.:datagen python -m t1t2.experiment --config configs/baseline_v2_reproduction.yaml
+
+For a quick local check add --max-epochs 2 --limit 512 --no-resume.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+
+import numpy as np
+import torch
+
+from .config import load_config
+from .data import TargetNormalizer, VoxelDataset
+from .device import get_device
+from .eval import (
+    calibrate_existence_threshold,
+    detr_query_outputs,
+    evaluate_detr,
+    evaluate_snr_ladder,
+    threshold_calibration_figure,
+    true_compartments,
+)
+from .train import train
+
+
+def run_experiment(config_path, results_dir=None, max_epochs=None, limit=None,
+                   resume=True, log=print):
+    """Train, evaluate and summarise one experiment. Returns the summary dict, which is
+    also written to results/<name>/summary.json."""
+    cfg = load_config(config_path)
+    results_dir = Path(results_dir) if results_dir else Path("results") / cfg.name
+
+    history, results_dir, model = train(
+        cfg, results_dir=results_dir, max_epochs=max_epochs, resume=resume, limit=limit, log=log,
+    )
+
+    # best.pt is the authority on which epoch won: train() selected it with
+    # early_stopping_min_delta, and recomputing a strict minimum from the history here could
+    # name a different epoch than the one whose weights are evaluated.
+    best_path = Path(results_dir) / "checkpoints" / "best.pt"
+    best = torch.load(best_path, map_location="cpu", weights_only=True) if best_path.exists() else None
+    summary = {
+        "name": cfg.name,
+        "epochs_run": len(history),
+        "epoch_budget": max_epochs if max_epochs is not None else cfg.train.epochs,
+        "best_epoch": None if best is None else int(best["epoch"]) + 1,
+        "best_val": None if best is None else float(best["val"]),
+        "selection_metric": cfg.train.selection_metric,
+        "best_total_val_loss": (
+            None if best is None else float(best.get("val_loss", best["val"]))
+        ),
+        "best_parameter_val_loss": (
+            None if best is None or "parameter_loss" not in best
+            else float(best["parameter_loss"])
+        ),
+        "early_stopped": len(history) < (max_epochs if max_epochs is not None else cfg.train.epochs),
+        # Runs on different amounts of data take different numbers of updates per epoch, so
+        # equal epoch counts are not equal training.
+        "total_steps": history[-1].get("cum_steps") if history else 0,
+        "wall_seconds": round(sum(h.get("seconds", 0) for h in history), 1),
+    }
+
+    # Evaluate on the test split, falling back to validation and then training if absent.
+    test_path = cfg.data.test_path or cfg.data.val_path or cfg.data.train_path
+    normalizer = TargetNormalizer.from_config(cfg.data)
+    device = get_device(cfg.train.device)
+    exist_thresh = float(cfg.evaluation.fixed_threshold)
+
+    # Threshold calibration runs on validation only. Off by default, which keeps the fixed
+    # threshold the earliest runs used.
+    if cfg.evaluation.calibrate_threshold:
+        if not cfg.data.val_path:
+            raise ValueError("threshold calibration requires data.val_path")
+        val_ds = VoxelDataset(cfg.data.val_path, cfg.data, normalizer, limit=limit)
+        log(
+            f"[{cfg.name}] calibrating existence threshold on validation "
+            f"({len(val_ds)} voxels; objective={cfg.evaluation.threshold_objective})"
+        )
+        query_outputs = detr_query_outputs(model, val_ds, device, normalizer)
+        thresholds = np.linspace(
+            cfg.evaluation.threshold_min,
+            cfg.evaluation.threshold_max,
+            cfg.evaluation.threshold_steps,
+        )
+        calibration = calibrate_existence_threshold(
+            query_outputs,
+            true_compartments(val_ds),
+            thresholds=thresholds,
+            objective=cfg.evaluation.threshold_objective,
+        )
+        exist_thresh = float(calibration["selected_threshold"])
+        with open(Path(results_dir) / "threshold_calibration.json", "w") as f:
+            json.dump(calibration, f, indent=2)
+        threshold_calibration_figure(
+            calibration, Path(results_dir) / "figures" / "threshold_calibration.png"
+        )
+        summary["threshold_calibration"] = {
+            "objective": calibration["objective"],
+            "selected_threshold": exist_thresh,
+            "selected": calibration["selected"],
+            "selection_split": "validation",
+        }
+
+    test_ds = VoxelDataset(test_path, cfg.data, normalizer, limit=limit)
+
+    log(f"[{cfg.name}] evaluating DETR on {test_path} ({len(test_ds)} voxels)")
+    summary["detr"] = evaluate_detr(
+        model, test_ds, device, normalizer, results_dir,
+        exist_thresh=exist_thresh, n_queries=cfg.model.n_queries,
+    )
+
+    # Score the fixed-SNR ladder if its files sit next to the test split. The rungs share
+    # voxels and standardised noise; only the amplitude differs, so SNR is the single variable.
+    ladder = _snr_ladder_paths(test_path)
+    if ladder:
+        log(f"[{cfg.name}] scoring the fixed-SNR ladder: {', '.join(sorted(ladder))}")
+        summary["snr_ladder"] = evaluate_snr_ladder(
+            model, ladder, cfg.data, device, normalizer, results_dir,
+            train_snr_min=_train_snr_min(cfg),
+            exist_thresh=exist_thresh, n_queries=cfg.model.n_queries, limit=limit,
+        )
+
+    with open(Path(results_dir) / "summary.json", "w") as f:
+        json.dump(summary, f, indent=2)
+    log(f"[{cfg.name}] done -> {results_dir}")
+    return summary
+
+
+def _train_snr_min(cfg) -> float | None:
+    """Training SNR floor from the generator's manifest next to the data, or None.
+
+    Used to mark ladder rungs below the training range as extrapolation.
+    """
+    try:
+        paths = cfg.data.train_path
+        first = paths if isinstance(paths, str) else paths[0]
+        manifest = Path(first).with_name("manifest.json")
+        with open(manifest) as f:
+            return float(json.load(f)["splits"]["train"]["snr_min"])
+    except (OSError, KeyError, TypeError, ValueError):
+        return None
+
+
+def _snr_ladder_paths(test_path) -> dict:
+    """{rung_label: [one path per compartment count]} for the test_snr*.parquet files next
+    to the test split, so each rung is scored across all counts at once."""
+    paths = [test_path] if isinstance(test_path, str) else list(test_path)
+    ladder: dict[str, list[str]] = {}
+    for p in paths:
+        for rung in sorted(Path(p).parent.glob("test_snr*.parquet")):
+            ladder.setdefault(rung.stem, []).append(str(rung))
+    return ladder
+
+
+def main():
+    ap = argparse.ArgumentParser(description="Train and evaluate one T1T2-DETR experiment.")
+    ap.add_argument("--config", required=True, help="Path to the experiment YAML.")
+    ap.add_argument("--results-dir", default=None, help="Override results/<name>/.")
+    ap.add_argument("--max-epochs", type=int, default=None, help="Cap the epoch count.")
+    ap.add_argument("--limit", type=int, default=None, help="Cap voxels loaded per split.")
+    ap.add_argument("--no-resume", action="store_true", help="Ignore any existing checkpoint.")
+    a = ap.parse_args()
+
+    summary = run_experiment(
+        a.config, results_dir=a.results_dir, max_epochs=a.max_epochs, limit=a.limit,
+        resume=not a.no_resume,
+    )
+    print(json.dumps(summary, indent=2))
+
+
+if __name__ == "__main__":
+    main()

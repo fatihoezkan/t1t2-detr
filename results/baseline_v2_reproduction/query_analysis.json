@@ -1,0 +1,170 @@
+{
+ "run": "baseline_v2_reproduction",
+ "theta": 0.7699999999999999,
+ "theta_source": "run's own fitted threshold",
+ "n_voxels": 9999,
+ "n_queries": 10,
+ "t1_range_ms": [
+  50.0,
+  3500.0
+ ],
+ "t2_range_ms": [
+  5.0,
+  500.0
+ ],
+ "n_slots_ever_active": 5,
+ "n_slots_never_active": 5,
+ "never_active_slots": [
+  2,
+  5,
+  6,
+  7,
+  8
+ ],
+ "never_active_max_prob_range": [
+  0.16298219561576843,
+  0.7188272476196289
+ ],
+ "slots": [
+  {
+   "slot": 1,
+   "active_count": 3343,
+   "active_rate": 0.3343334333433343,
+   "max_prob": 0.9997100234031677,
+   "mean_prob": 0.335809588432312,
+   "median_w_active": 0.9961649179458618,
+   "median_t1_active_ms": 449.2522407318862,
+   "median_t2_active_ms": 30.532738105339263,
+   "t1_p10_ms": 90.61028958741855,
+   "t1_p90_ms": 1831.1371479609427,
+   "t2_p10_ms": 7.452428230494494,
+   "t2_p90_ms": 186.02463689805037
+  },
+  {
+   "slot": 2,
+   "active_count": 0,
+   "active_rate": 0.0,
+   "max_prob": 0.16802263259887695,
+   "mean_prob": 0.007936740294098854,
+   "median_w_active": null,
+   "median_t1_active_ms": null,
+   "median_t2_active_ms": null,
+   "t1_p10_ms": null,
+   "t1_p90_ms": null,
+   "t2_p10_ms": null,
+   "t2_p90_ms": null
+  },
+  {
+   "slot": 3,
+   "active_count": 2881,
+   "active_rate": 0.2881288128812881,
+   "max_prob": 0.9999338388442993,
+   "mean_prob": 0.4870956242084503,
+   "median_w_active": 0.16663259267807007,
+   "median_t1_active_ms": 396.6399762847885,
+   "median_t2_active_ms": 24.902753598342947,
+   "t1_p10_ms": 88.7769341229993,
+   "t1_p90_ms": 1587.4562916585437,
+   "t2_p10_ms": 8.580035184124638,
+   "t2_p90_ms": 126.18476104250192
+  },
+  {
+   "slot": 4,
+   "active_count": 6244,
+   "active_rate": 0.6244624462446244,
+   "max_prob": 0.9999901056289673,
+   "mean_prob": 0.648252546787262,
+   "median_w_active": 0.5665188729763031,
+   "median_t1_active_ms": 338.6526771071824,
+   "median_t2_active_ms": 18.430057845881812,
+   "t1_p10_ms": 79.4813928603872,
+   "t1_p90_ms": 1940.234481606984,
+   "t2_p10_ms": 6.704922581782084,
+   "t2_p90_ms": 85.81781638779417
+  },
+  {
+   "slot": 5,
+   "active_count": 0,
+   "active_rate": 0.0,
+   "max_prob": 0.7188272476196289,
+   "mean_prob": 0.011655846610665321,
+   "median_w_active": null,
+   "median_t1_active_ms": null,
+   "median_t2_active_ms": null,
+   "t1_p10_ms": null,
+   "t1_p90_ms": null,
+   "t2_p10_ms": null,
+   "t2_p90_ms": null
+  },
+  {
+   "slot": 6,
+   "active_count": 0,
+   "active_rate": 0.0,
+   "max_prob": 0.16298219561576843,
+   "mean_prob": 0.0044809444807469845,
+   "median_w_active": null,
+   "median_t1_active_ms": null,
+   "median_t2_active_ms": null,
+   "t1_p10_ms": null,
+   "t1_p90_ms": null,
+   "t2_p10_ms": null,
+   "t2_p90_ms": null
+  },
+  {
+   "slot": 7,
+   "active_count": 0,
+   "active_rate": 0.0,
+   "max_prob": 0.5612170100212097,
+   "mean_prob": 0.010634977370500565,
+   "median_w_active": null,
+   "median_t1_active_ms": null,
+   "median_t2_active_ms": null,
+   "t1_p10_ms": null,
+   "t1_p90_ms": null,
+   "t2_p10_ms": null,
+   "t2_p90_ms": null
+  },
+  {
+   "slot": 8,
+   "active_count": 0,
+   "active_rate": 0.0,
+   "max_prob": 0.6501972079277039,
+   "mean_prob": 0.01708545722067356,
+   "median_w_active": null,
+   "median_t1_active_ms": null,
+   "median_t2_active_ms": null,
+   "t1_p10_ms": null,
+   "t1_p90_ms": null,
+   "t2_p10_ms": null,
+   "t2_p90_ms": null
+  },
+  {
+   "slot": 9,
+   "active_count": 6301,
+   "active_rate": 0.6301630163016302,
+   "max_prob": 0.9999974966049194,
+   "mean_prob": 0.6687498688697815,
+   "median_w_active": 0.3709408640861511,
+   "median_t1_active_ms": 1111.1019716993274,
+   "median_t2_active_ms": 101.7374351526504,
+   "t1_p10_ms": 223.3414432960487,
+   "t1_p90_ms": 2745.72875424175,
+   "t2_p10_ms": 18.174092943737524,
+   "t2_p90_ms": 340.9414786516921
+  },
+  {
+   "slot": 10,
+   "active_count": 30,
+   "active_rate": 0.003000300030003,
+   "max_prob": 0.980313241481781,
+   "mean_prob": 0.025371668860316277,
+   "median_w_active": 0.165763758122921,
+   "median_t1_active_ms": 495.5139334581321,
+   "median_t2_active_ms": 41.00334609900136,
+   "t1_p10_ms": 241.8260000464126,
+   "t1_p90_ms": 1414.5924151154013,
+   "t2_p10_ms": 11.458173082847797,
+   "t2_p90_ms": 114.06220191238194
+  }
+ ]
+}

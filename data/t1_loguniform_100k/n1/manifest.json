@@ -1,0 +1,100 @@
+{
+  "n_comp": 1,
+  "base_seed": 3500501,
+  "max_comp": 4,
+  "splits": {
+    "train": {
+      "rows": 33333,
+      "split_code": 0,
+      "snr": null,
+      "snr_min": 30.0,
+      "snr_max": 150.0,
+      "noise_sigma": null
+    },
+    "val": {
+      "rows": 3333,
+      "split_code": 1,
+      "snr": null,
+      "snr_min": 30.0,
+      "snr_max": 150.0,
+      "noise_sigma": null
+    },
+    "test": {
+      "rows": 3333,
+      "split_code": 2,
+      "snr": null,
+      "snr_min": 30.0,
+      "snr_max": 150.0,
+      "noise_sigma": null
+    },
+    "test_snr20": {
+      "rows": 1667,
+      "split_code": 3,
+      "snr": 20.0,
+      "snr_min": 30.0,
+      "snr_max": 150.0,
+      "noise_sigma": null
+    },
+    "test_snr40": {
+      "rows": 1667,
+      "split_code": 3,
+      "snr": 40.0,
+      "snr_min": 30.0,
+      "snr_max": 150.0,
+      "noise_sigma": null
+    },
+    "test_snr60": {
+      "rows": 1667,
+      "split_code": 3,
+      "snr": 60.0,
+      "snr_min": 30.0,
+      "snr_max": 150.0,
+      "noise_sigma": null
+    },
+    "test_snr100": {
+      "rows": 1667,
+      "split_code": 3,
+      "snr": 100.0,
+      "snr_min": 30.0,
+      "snr_max": 150.0,
+      "noise_sigma": null
+    },
+    "test_snr150": {
+      "rows": 1667,
+      "split_code": 3,
+      "snr": 150.0,
+      "snr_min": 30.0,
+      "snr_max": 150.0,
+      "noise_sigma": null
+    }
+  },
+  "streams": {
+    "params": 1001,
+    "noise": 2001,
+    "snr": 3001
+  },
+  "physics": {
+    "t1_range": [
+      50.0,
+      3500.0
+    ],
+    "t2_range": [
+      5.0,
+      500.0
+    ],
+    "min_weight": 0.05,
+    "noise": "additive_gaussian_signed",
+    "sampling": "t1_log_uniform"
+  },
+  "protocol_sha256": "78ab7a82ce2c1ef91f7379a466aede3496340c271d07d13765b93ec766f9265d",
+  "git": {
+    "commit": "3fc852460547591b29a9a30474f9497ced26087a",
+    "dirty": true
+  },
+  "dependencies": {
+    "python": "3.12.13",
+    "numpy": "2.5.1",
+    "pandas": "3.0.5",
+    "pyarrow": "25.0.0"
+  }
+}

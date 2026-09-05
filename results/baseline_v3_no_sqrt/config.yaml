@@ -1,0 +1,82 @@
+name: baseline_v3_no_sqrt
+data:
+  train_path:
+  - data/t1_3500_t2_500_100k/n1/train.parquet
+  - data/t1_3500_t2_500_100k/n2/train.parquet
+  - data/t1_3500_t2_500_100k/n3/train.parquet
+  val_path:
+  - data/t1_3500_t2_500_100k/n1/val.parquet
+  - data/t1_3500_t2_500_100k/n2/val.parquet
+  - data/t1_3500_t2_500_100k/n3/val.parquet
+  test_path:
+  - data/t1_3500_t2_500_100k/n1/test.parquet
+  - data/t1_3500_t2_500_100k/n2/test.parquet
+  - data/t1_3500_t2_500_100k/n3/test.parquet
+  n_inputs: 64
+  train_limit_per_path: null
+  normalization: log_minmax
+  t1_min: 50.0
+  t1_max: 3500.0
+  t2_min: 5.0
+  t2_max: 500.0
+  signal_norm: max
+model:
+  input_dim: 64
+  hidden_dim: 512
+  fs_dim: 256
+  n_queries: 6
+  n_dlayers: 2
+  n_heads: 4
+  aux_loss: false
+  exist_head: shared
+  pretrain_path: null
+  freeze_encoder: false
+loss:
+  t1_weight: 1.0
+  t2_weight: 1.0
+  w_weight: 1.0
+  exist_weight: 0.1
+  aux_weight: 1.0
+  t1_t2_weighting: signal_fraction
+  signal_consistency: true
+  signal_consistency_weight: 1.0
+  signal_consistency_type: mse
+  signal_consistency_target: noisy
+  signal_consistency_warmup_epochs: 10
+train:
+  epochs: 500
+  batch_size: 512
+  lr: 0.0001
+  weight_decay: 0.0001
+  opt_betas:
+  - 0.9
+  - 0.98
+  early_stopping: true
+  early_stopping_patience: 35
+  early_stopping_min_delta: 1.0e-05
+  selection_metric: parameter_loss
+  lr_scheduler: reduce_on_plateau
+  scheduler_factor: 0.5
+  scheduler_patience: 7
+  scheduler_min_lr: 1.0e-06
+  gradient_clip_norm: 1.0
+  device: null
+  seed: 20260724
+  num_workers: 4
+  ckpt_every: 1
+evaluation:
+  calibrate_threshold: true
+  fixed_threshold: 0.5
+  threshold_objective: parameter_set_error
+  threshold_min: 0.05
+  threshold_max: 0.95
+  threshold_steps: 91
+notes: "DECOMPOSITION ARM \u2014 one change vs baseline_v3: t1_t2_weighting sqrt ->\
+  \ signal_fraction\n(the baseline's weighting). Everything else identical to baseline_v3\
+  \ (2 layers, 6 queries,\nshared head, physics noisy lambda=1.0 warmup 10).\n\nQuestion:\
+  \ is sqrt the cause of v3's counting failure? v3 missed its pre-registered\ncriterion\
+  \ (a) at 77.49% (-1.40 pp vs reproduction, beyond the +-0.80 floor). The prior\n\
+  suspect is the weighting term: loss_uniform showed weighting changes cost counting\n\
+  (-3.06 pp), while the physics arms did not (+0.31/+0.64).\n\nReading: count_accuracy\
+  \ recovers to within the floor (>=78.1) -> sqrt caused the loss;\nstays low -> the\
+  \ small-model/shared-head combination interacts, sqrt is not the (only) cause.\n"

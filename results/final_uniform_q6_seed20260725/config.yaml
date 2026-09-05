@@ -1,0 +1,104 @@
+name: final_uniform_q6_seed20260725
+data:
+  train_path:
+  - data/t1_3500_t2_500_100k/n1/train.parquet
+  - data/t1_3500_t2_500_100k/n2/train.parquet
+  - data/t1_3500_t2_500_100k/n3/train.parquet
+  val_path:
+  - data/t1_3500_t2_500_100k/n1/val.parquet
+  - data/t1_3500_t2_500_100k/n2/val.parquet
+  - data/t1_3500_t2_500_100k/n3/val.parquet
+  test_path:
+  - data/t1_3500_t2_500_100k/n1/test.parquet
+  - data/t1_3500_t2_500_100k/n2/test.parquet
+  - data/t1_3500_t2_500_100k/n3/test.parquet
+  n_inputs: 64
+  train_limit_per_path: null
+  normalization: log_minmax
+  t1_min: 50.0
+  t1_max: 3500.0
+  t2_min: 5.0
+  t2_max: 500.0
+  signal_norm: max
+model:
+  input_dim: 64
+  hidden_dim: 512
+  fs_dim: 256
+  n_queries: 6
+  n_dlayers: 4
+  n_heads: 4
+  aux_loss: false
+  exist_head: joint
+  pretrain_path: null
+  freeze_encoder: false
+loss:
+  t1_weight: 1.0
+  t2_weight: 1.0
+  w_weight: 1.0
+  exist_weight: 0.1
+  aux_weight: 1.0
+  t1_t2_weighting: uniform
+  signal_consistency: false
+  signal_consistency_weight: 0.0
+  signal_consistency_type: mse
+  signal_consistency_target: noisy
+  signal_consistency_warmup_epochs: 0
+train:
+  epochs: 500
+  batch_size: 512
+  lr: 0.0001
+  weight_decay: 0.0001
+  opt_betas:
+  - 0.9
+  - 0.98
+  early_stopping: true
+  early_stopping_patience: 35
+  early_stopping_min_delta: 1.0e-05
+  selection_metric: parameter_loss
+  lr_scheduler: reduce_on_plateau
+  scheduler_factor: 0.5
+  scheduler_patience: 7
+  scheduler_min_lr: 1.0e-06
+  gradient_clip_norm: 1.0
+  device: null
+  seed: 20260725
+  num_workers: 4
+  ckpt_every: 1
+evaluation:
+  calibrate_threshold: true
+  fixed_threshold: 0.5
+  threshold_objective: parameter_set_error
+  threshold_min: 0.05
+  threshold_max: 0.95
+  threshold_steps: 91
+notes: "FINAL MODEL, seed 20260725. Two changes from the reference, each backed by\
+  \ its own\n  single-change run: t1_t2_weighting signal_fraction -> uniform, and\
+  \ n_queries 10 -> 6.\n  Nothing else moves.\n\n  Why exactly these two. loss_uniform\
+  \ is the only arm that improved the threshold-free\n  mAP@7 (+0.1048, six times\
+  \ the measured seed spread of 0.0168) and it lifted the hardest\n  regime most:\
+  \ K=3 strict accuracy 11.58 -> 19.08 %. queries_6 gained strict accuracy at\n  both\
+  \ declared thresholds (+7.70 pp at 0.50, +1.51 at 0.75) with no measured mAP loss.\n\
+  \  The two act on different failures -- the loss fixes WHERE compartments are placed,\
+  \ the\n  query cut removes spurious proposals -- so they are candidates for being\
+  \ additive.\n\n  Why nothing else. Decoder depth in either direction, aux_loss,\
+  \ exist_head_shared and the\n  T1 sampling scheme all left every measure inside\
+  \ its ruler. The signal-consistency term\n  is flat once judged against the four-seed\
+  \ spread, which is why baseline_v4 -- which kept\n  physics and shared head but\
+  \ reverted the loss weighting to signal_fraction -- landed at\n  57.50 % while loss_uniform\
+  \ alone reached 61.82 %. This run does not repeat that mistake.\n\n  Four seeds\
+  \ (20260724-27) match the reference replicates exactly, so the headline\n  comparison\
+  \ is four runs against four runs rather than one against one.\n\n  CRITERIA, fixed\
+  \ before any of these four runs (compare means over the 4 seeds):\n    (a) beats\
+  \ the reference on strict accuracy 2D at BOTH declared thresholds by more\n    \
+  \    than the ruler: 1.95 pp at theta=0.50 and 0.98 pp at theta=0.75.\n    (b) does\
+  \ not fall below loss_uniform on mAP@7 by more than the seed spread, 0.0168.\n \
+  \   (c) does not fall below loss_uniform on K=3 strict accuracy (19.08 %) by more\
+  \ than\n        the ruler.\n\n  READING THE OUTCOME, also fixed in advance:\n  \
+  \  beats loss_uniform at both thresholds -> the two gains are additive; this is\
+  \ the\n      final model of the thesis.\n    matches loss_uniform within the ruler\
+  \ -> the query cut is redundant once the loss is\n      fixed, i.e. both changes\
+  \ were suppressing the same spurious low-weight proposals.\n      Report loss_uniform\
+  \ as the final model, because it is the simpler recipe.\n    falls below loss_uniform\
+  \ -> the two interact negatively. Report loss_uniform as final\n      and report\
+  \ this run as the evidence against combining them.\n  A null result here is informative\
+  \ and must be reported either way.\n"

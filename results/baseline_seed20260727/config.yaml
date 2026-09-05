@@ -1,0 +1,90 @@
+name: baseline_seed20260727
+data:
+  train_path:
+  - data/t1_3500_t2_500_100k/n1/train.parquet
+  - data/t1_3500_t2_500_100k/n2/train.parquet
+  - data/t1_3500_t2_500_100k/n3/train.parquet
+  val_path:
+  - data/t1_3500_t2_500_100k/n1/val.parquet
+  - data/t1_3500_t2_500_100k/n2/val.parquet
+  - data/t1_3500_t2_500_100k/n3/val.parquet
+  test_path:
+  - data/t1_3500_t2_500_100k/n1/test.parquet
+  - data/t1_3500_t2_500_100k/n2/test.parquet
+  - data/t1_3500_t2_500_100k/n3/test.parquet
+  n_inputs: 64
+  train_limit_per_path: null
+  normalization: log_minmax
+  t1_min: 50.0
+  t1_max: 3500.0
+  t2_min: 5.0
+  t2_max: 500.0
+  signal_norm: max
+model:
+  input_dim: 64
+  hidden_dim: 512
+  fs_dim: 256
+  n_queries: 10
+  n_dlayers: 4
+  n_heads: 4
+  aux_loss: false
+  exist_head: joint
+  pretrain_path: null
+  freeze_encoder: false
+loss:
+  t1_weight: 1.0
+  t2_weight: 1.0
+  w_weight: 1.0
+  exist_weight: 0.1
+  aux_weight: 1.0
+  t1_t2_weighting: signal_fraction
+  signal_consistency: false
+  signal_consistency_weight: 0.0
+  signal_consistency_type: mse
+  signal_consistency_target: noisy
+  signal_consistency_warmup_epochs: 0
+train:
+  epochs: 500
+  batch_size: 512
+  lr: 0.0001
+  weight_decay: 0.0001
+  opt_betas:
+  - 0.9
+  - 0.98
+  early_stopping: true
+  early_stopping_patience: 35
+  early_stopping_min_delta: 1.0e-05
+  selection_metric: parameter_loss
+  lr_scheduler: reduce_on_plateau
+  scheduler_factor: 0.5
+  scheduler_patience: 7
+  scheduler_min_lr: 1.0e-06
+  gradient_clip_norm: 1.0
+  device: null
+  seed: 20260727
+  num_workers: 4
+  ckpt_every: 1
+evaluation:
+  calibrate_threshold: true
+  fixed_threshold: 0.5
+  threshold_objective: parameter_set_error
+  threshold_min: 0.05
+  threshold_max: 0.95
+  threshold_steps: 91
+notes: "SEED REPLICATE 3 of 3 \u2014 the only parameter changed is train.seed (20260727).\n\
+  \n  Why it exists: every run of this thesis used seed 20260724, so the run-to-run\
+  \ ruler quoted\n  throughout the results chapter came from a pair of runs that shared\
+  \ configuration, data AND\n  seed. That ruler measures nondeterminism and library\
+  \ drift, which is a LOWER BOUND on true\n  seed variance. These three replicates\
+  \ measure the real thing.\n\n  The three seeds (20260725, 20260726, 20260727) were\
+  \ declared before any of them was run, so\n  the spread cannot be the result of\
+  \ picking favourable seeds. All three use the same pinned\n  environment as baseline_v2_reproduction;\
+  \ otherwise this would re-measure library drift again.\n\n  Measurement: report\
+  \ the spread of count accuracy, strict voxel accuracy at theta=0.50 and\n  0.75,\
+  \ mAP@7 (2D and 3D) and small-compartment T1 error over the four reference runs\n\
+  \  (baseline_v2_reproduction + these three). Report as range/std with n=4, NOT as\
+  \ a confidence\n  interval. Whatever this spread turns out to be replaces the \"\
+  reproduction spread\" ruler in\n  Section 5.1, and every \"N times the ruler\" multiple\
+  \ in the chapter is recomputed against it.\n\n  Expected consequence: verdicts resting\
+  \ on ~2x the old ruler (physics_noisy mAP@7 +0.0080,\n  decoder_2 -0.0090, queries_6\
+  \ -0.0067) may become flat. That is a finding, not a failure.\n"

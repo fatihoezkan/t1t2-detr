@@ -1,0 +1,27 @@
+run,verdict,n_config_diffs,differing_fields,cross_dataset,detail
+baseline_v2_reproduction,REFERENCE,0,-,0,the reference run itself
+aux_loss,single change,1,model.aux_loss,0,`model.aux_loss`: False -> True
+baseline_seed20260725,single change,1,train.seed,0,`train.seed`: 20260724 -> 20260725
+baseline_seed20260726,single change,1,train.seed,0,`train.seed`: 20260724 -> 20260726
+baseline_seed20260727,single change,1,train.seed,0,`train.seed`: 20260724 -> 20260727
+baseline_v3,NOT INTERPRETABLE,7,loss.signal_consistency; loss.signal_consistency_warmup_epochs; loss.signal_consistency_weight; loss.t1_t2_weighting; model.exist_head; model.n_dlayers; model.n_queries,0,"7 config fields differ, so no observed difference can be attributed to any one of them"
+baseline_v3_no_physics,NOT INTERPRETABLE,5,loss.signal_consistency_warmup_epochs; loss.t1_t2_weighting; model.exist_head; model.n_dlayers; model.n_queries,0,"5 config fields differ, so no observed difference can be attributed to any one of them"
+baseline_v3_no_sqrt,NOT INTERPRETABLE,6,loss.signal_consistency; loss.signal_consistency_warmup_epochs; loss.signal_consistency_weight; model.exist_head; model.n_dlayers; model.n_queries,0,"6 config fields differ, so no observed difference can be attributed to any one of them"
+baseline_v4,NOT INTERPRETABLE,5,loss.signal_consistency; loss.signal_consistency_warmup_epochs; loss.signal_consistency_weight; model.exist_head; model.n_queries,0,"5 config fields differ, so no observed difference can be attributed to any one of them"
+data_loguniform,DIFFERENT DATASET,3,data.test_path; data.train_path; data.val_path,1,"scored on a different test set, so this is not a controlled comparison: the delta mixes the change under test with the different voxel draw"
+decoder_2,single change,1,model.n_dlayers,0,`model.n_dlayers`: 4 -> 2
+decoder_6,single change,1,model.n_dlayers,0,`model.n_dlayers`: 4 -> 6
+exist_head_shared,single change,1,model.exist_head,0,`model.exist_head`: 'joint' -> 'shared'
+exist_weight_03,single change,1,loss.exist_weight,0,`loss.exist_weight`: 0.1 -> 0.3
+final_uniform_q6_seed20260724,NOT INTERPRETABLE,2,loss.t1_t2_weighting; model.n_queries,0,"2 config fields differ, so no observed difference can be attributed to any one of them"
+final_uniform_q6_seed20260725,NOT INTERPRETABLE,3,loss.t1_t2_weighting; model.n_queries; train.seed,0,"3 config fields differ, so no observed difference can be attributed to any one of them"
+final_uniform_q6_seed20260726,NOT INTERPRETABLE,3,loss.t1_t2_weighting; model.n_queries; train.seed,0,"3 config fields differ, so no observed difference can be attributed to any one of them"
+final_uniform_q6_seed20260727,NOT INTERPRETABLE,3,loss.t1_t2_weighting; model.n_queries; train.seed,0,"3 config fields differ, so no observed difference can be attributed to any one of them"
+loss_uniform,single change,1,loss.t1_t2_weighting,0,`loss.t1_t2_weighting`: 'signal_fraction' -> 'uniform'
+loss_uniform_seed20260725,NOT INTERPRETABLE,2,loss.t1_t2_weighting; train.seed,0,"2 config fields differ, so no observed difference can be attributed to any one of them"
+loss_uniform_seed20260726,NOT INTERPRETABLE,2,loss.t1_t2_weighting; train.seed,0,"2 config fields differ, so no observed difference can be attributed to any one of them"
+loss_uniform_seed20260727,NOT INTERPRETABLE,2,loss.t1_t2_weighting; train.seed,0,"2 config fields differ, so no observed difference can be attributed to any one of them"
+physics_clean,single change,4,loss.signal_consistency; loss.signal_consistency_target; loss.signal_consistency_warmup_epochs; loss.signal_consistency_weight,0,physics term switched on as one conceptual change: `loss.signal_consistency`: False -> True; `loss.signal_consistency_target`: 'noisy' -> 'clean'; `loss.signal_consistency_warmup_epochs`: 0 -> 10; `loss.signal_consistency_weight`: 0.0 -> 1.0
+physics_noisy,single change,3,loss.signal_consistency; loss.signal_consistency_warmup_epochs; loss.signal_consistency_weight,0,physics term switched on as one conceptual change: `loss.signal_consistency`: False -> True; `loss.signal_consistency_warmup_epochs`: 0 -> 10; `loss.signal_consistency_weight`: 0.0 -> 1.0
+queries_4,single change,1,model.n_queries,0,`model.n_queries`: 10 -> 4
+queries_6,single change,1,model.n_queries,0,`model.n_queries`: 10 -> 6

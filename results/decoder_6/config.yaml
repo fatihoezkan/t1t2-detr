@@ -1,0 +1,89 @@
+name: decoder_6
+data:
+  train_path:
+  - data/t1_3500_t2_500_100k/n1/train.parquet
+  - data/t1_3500_t2_500_100k/n2/train.parquet
+  - data/t1_3500_t2_500_100k/n3/train.parquet
+  val_path:
+  - data/t1_3500_t2_500_100k/n1/val.parquet
+  - data/t1_3500_t2_500_100k/n2/val.parquet
+  - data/t1_3500_t2_500_100k/n3/val.parquet
+  test_path:
+  - data/t1_3500_t2_500_100k/n1/test.parquet
+  - data/t1_3500_t2_500_100k/n2/test.parquet
+  - data/t1_3500_t2_500_100k/n3/test.parquet
+  n_inputs: 64
+  train_limit_per_path: null
+  normalization: log_minmax
+  t1_min: 50.0
+  t1_max: 3500.0
+  t2_min: 5.0
+  t2_max: 500.0
+  signal_norm: max
+model:
+  input_dim: 64
+  hidden_dim: 512
+  fs_dim: 256
+  n_queries: 10
+  n_dlayers: 6
+  n_heads: 4
+  aux_loss: false
+  exist_head: joint
+  pretrain_path: null
+  freeze_encoder: false
+loss:
+  t1_weight: 1.0
+  t2_weight: 1.0
+  w_weight: 1.0
+  exist_weight: 0.1
+  aux_weight: 1.0
+  t1_t2_weighting: signal_fraction
+  signal_consistency: false
+  signal_consistency_weight: 0.0
+  signal_consistency_type: mse
+train:
+  epochs: 500
+  batch_size: 512
+  lr: 0.0001
+  weight_decay: 0.0001
+  opt_betas:
+  - 0.9
+  - 0.98
+  early_stopping: true
+  early_stopping_patience: 35
+  early_stopping_min_delta: 1.0e-05
+  selection_metric: parameter_loss
+  lr_scheduler: reduce_on_plateau
+  scheduler_factor: 0.5
+  scheduler_patience: 7
+  scheduler_min_lr: 1.0e-06
+  gradient_clip_norm: 1.0
+  device: null
+  seed: 20260724
+  num_workers: 4
+  ckpt_every: 1
+evaluation:
+  calibrate_threshold: true
+  fixed_threshold: 0.5
+  threshold_objective: parameter_set_error
+  threshold_min: 0.05
+  threshold_max: 0.95
+  threshold_steps: 91
+notes: "CHANGED: model.n_dlayers  4 -> 6.  Nothing else.\n\nThe deep end of the depth\
+  \ sweep: two extra attention rounds per query, roughly 1.6 M extra\nparameters.\
+  \ Only interpretable next to decoder_2 and the depth-4 baseline.\n\nNote on cost:\
+  \ depth raises time per epoch, and if aux_loss were also on it would raise the number\n\
+  of loss calls per batch \u2014 but aux_loss is OFF here, exactly as in the baseline,\
+  \ so this arm\nchanges one thing only. That is worth noticing as an example of the\
+  \ one-change rule: the two\nknobs interact, and an arm that moved both would be\
+  \ uninterpretable.\n\nHypothesis: little or no improvement. The baseline already\
+  \ early-stops cleanly at epoch 137 of a\n500-epoch budget, which suggests the limit\
+  \ is the information in 64 measurements rather than model\ncapacity. If that reading\
+  \ is right, extra depth cannot help, and a flat result here is evidence\nFOR the\
+  \ thesis's central claim rather than a disappointing run.\n\nMeasurement: t1_rel_median\
+  \ / t2_rel_median / count_accuracy (baseline 5.63 % / 6.90 % / 78.54 %)\nand best_epoch\
+  \ (137) against wall_seconds (1639 s). POSITIVE (clear improvement): the baseline\n\
+  was capacity-limited after all, which weakens the information-limit argument and\
+  \ must be reported\nas such. NEGATIVE (flat): capacity is not the binding constraint\
+  \ \u2014 this is the arm whose negative\nresult most directly supports the thesis,\
+  \ and it should be presented that way rather than buried.\n"

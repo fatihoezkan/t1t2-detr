@@ -1,0 +1,95 @@
+name: queries_6
+data:
+  train_path:
+  - data/t1_3500_t2_500_100k/n1/train.parquet
+  - data/t1_3500_t2_500_100k/n2/train.parquet
+  - data/t1_3500_t2_500_100k/n3/train.parquet
+  val_path:
+  - data/t1_3500_t2_500_100k/n1/val.parquet
+  - data/t1_3500_t2_500_100k/n2/val.parquet
+  - data/t1_3500_t2_500_100k/n3/val.parquet
+  test_path:
+  - data/t1_3500_t2_500_100k/n1/test.parquet
+  - data/t1_3500_t2_500_100k/n2/test.parquet
+  - data/t1_3500_t2_500_100k/n3/test.parquet
+  n_inputs: 64
+  train_limit_per_path: null
+  normalization: log_minmax
+  t1_min: 50.0
+  t1_max: 3500.0
+  t2_min: 5.0
+  t2_max: 500.0
+  signal_norm: max
+model:
+  input_dim: 64
+  hidden_dim: 512
+  fs_dim: 256
+  n_queries: 6
+  n_dlayers: 4
+  n_heads: 4
+  aux_loss: false
+  exist_head: joint
+  pretrain_path: null
+  freeze_encoder: false
+loss:
+  t1_weight: 1.0
+  t2_weight: 1.0
+  w_weight: 1.0
+  exist_weight: 0.1
+  aux_weight: 1.0
+  t1_t2_weighting: signal_fraction
+  signal_consistency: false
+  signal_consistency_weight: 0.0
+  signal_consistency_type: mse
+train:
+  epochs: 500
+  batch_size: 512
+  lr: 0.0001
+  weight_decay: 0.0001
+  opt_betas:
+  - 0.9
+  - 0.98
+  early_stopping: true
+  early_stopping_patience: 35
+  early_stopping_min_delta: 1.0e-05
+  selection_metric: parameter_loss
+  lr_scheduler: reduce_on_plateau
+  scheduler_factor: 0.5
+  scheduler_patience: 7
+  scheduler_min_lr: 1.0e-06
+  gradient_clip_norm: 1.0
+  device: null
+  seed: 20260724
+  num_workers: 4
+  ckpt_every: 1
+evaluation:
+  calibrate_threshold: true
+  fixed_threshold: 0.5
+  threshold_objective: parameter_set_error
+  threshold_min: 0.05
+  threshold_max: 0.95
+  threshold_steps: 91
+notes: "CHANGED: model.n_queries  10 -> 6.  Nothing else.\n\nThe baseline gives the\
+  \ decoder 10 slots to describe at most 3 compartments. Each query is a\nlearned\
+  \ vector that specialises in a region of (T1, T2) space; with 10 slots for 3 objects\
+  \ most\nare idle on any given voxel, and the existence head's job is largely to\
+  \ switch them off.\n\nRelevant baseline observation: existence precision (0.960)\
+  \ exceeds recall (0.926) \u2014 the model\nunder-reports rather than over-reports.\
+  \ If surplus queries were the cause of over-proposal, we\nwould see the opposite.\
+  \ So the naive prediction \"fewer queries means fewer false positives\" is\nprobably\
+  \ not the mechanism, which is exactly why this is worth measuring instead of assuming.\n\
+  \nCONFOUNDER, must be stated when reporting: n_queries is not a pure capacity knob.\
+  \ (a) The joint\nexistence head takes red_dim * n_queries inputs, so the parameter\
+  \ count changes: 4,440,777 at 6\nqueries against 4,508,365 at 10, i.e. -1.50 %.\
+  \ (b) The existence BCE up-weights positives by\nclamp((n_queries - n_comp)/n_comp,\
+  \ 0.5, 10) (loss.py:103), so shrinking n_queries also changes the\nexistence class\
+  \ balance: for n_comp = 3 the positive weight falls from 2.33 to 1.00.\n\nHypothesis:\
+  \ 6 queries is still comfortably above the maximum of 3 compartments, so parameter\n\
+  accuracy should be unchanged. Existence recall may rise slightly as the reduced\
+  \ positive\ndown-weighting makes the classifier less reluctant to fire.\n\nMeasurement:\
+  \ existence_precision / existence_recall / existence_f1 and count_accuracy from\n\
+  metrics_detr.json (baseline 0.960 / 0.926 / 0.943, 78.54 %), read together with\
+  \ queries_4 as a\nthree-point curve over 4, 6, 10. POSITIVE (metrics hold): 10 queries\
+  \ is redundant and the model\ncan be made smaller at no cost \u2014 a clean efficiency\
+  \ statement. NEGATIVE (metrics degrade): slack\nslots are doing useful work, which\
+  \ supports the DETR design choice of over-provisioning queries.\n"

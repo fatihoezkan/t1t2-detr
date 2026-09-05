@@ -1,0 +1,94 @@
+name: baseline_v4
+data:
+  train_path:
+  - data/t1_3500_t2_500_100k/n1/train.parquet
+  - data/t1_3500_t2_500_100k/n2/train.parquet
+  - data/t1_3500_t2_500_100k/n3/train.parquet
+  val_path:
+  - data/t1_3500_t2_500_100k/n1/val.parquet
+  - data/t1_3500_t2_500_100k/n2/val.parquet
+  - data/t1_3500_t2_500_100k/n3/val.parquet
+  test_path:
+  - data/t1_3500_t2_500_100k/n1/test.parquet
+  - data/t1_3500_t2_500_100k/n2/test.parquet
+  - data/t1_3500_t2_500_100k/n3/test.parquet
+  n_inputs: 64
+  train_limit_per_path: null
+  normalization: log_minmax
+  t1_min: 50.0
+  t1_max: 3500.0
+  t2_min: 5.0
+  t2_max: 500.0
+  signal_norm: max
+model:
+  input_dim: 64
+  hidden_dim: 512
+  fs_dim: 256
+  n_queries: 6
+  n_dlayers: 4
+  n_heads: 4
+  exist_head: shared
+  aux_loss: false
+  pretrain_path: null
+  freeze_encoder: false
+loss:
+  t1_weight: 1.0
+  t2_weight: 1.0
+  w_weight: 1.0
+  exist_weight: 0.1
+  aux_weight: 1.0
+  t1_t2_weighting: signal_fraction
+  signal_consistency: true
+  signal_consistency_weight: 1.0
+  signal_consistency_type: mse
+  signal_consistency_target: noisy
+  signal_consistency_warmup_epochs: 10
+train:
+  epochs: 500
+  batch_size: 512
+  lr: 0.0001
+  weight_decay: 0.0001
+  opt_betas:
+  - 0.9
+  - 0.98
+  early_stopping: true
+  early_stopping_patience: 35
+  early_stopping_min_delta: 1.0e-05
+  selection_metric: parameter_loss
+  lr_scheduler: reduce_on_plateau
+  scheduler_factor: 0.5
+  scheduler_patience: 7
+  scheduler_min_lr: 1.0e-06
+  gradient_clip_norm: 1.0
+  device: null
+  seed: 20260724
+  num_workers: 4
+  ckpt_every: 1
+evaluation:
+  calibrate_threshold: true
+  fixed_threshold: 0.5
+  threshold_objective: parameter_set_error
+  threshold_min: 0.05
+  threshold_max: 0.95
+  threshold_steps: 91
+notes: |
+  Combined model v4, built from what the v3 decomposition cleared. Three changes relative to
+  baseline_v2_reproduction, everything else identical:
+
+    model.n_queries         10 -> 6
+    model.exist_head        joint -> shared
+    loss.signal_consistency on, noisy target, weight 1.0, ten warmup epochs
+
+  Deliberately not taken over from v3: the square-root weighting, which the decomposition
+  implicated in the counting loss, and the two-layer decoder, so that the run stays at the
+  baseline depth.
+
+  Success criteria, written down before the run was submitted:
+    (a) count accuracy >= 78.1 %
+    (b) pooled median absolute T1 error <= 27 ms
+    (c) existence F1 >= 0.944  (the reproduction's value)
+  If (a) fails the combination is rejected regardless of (b) and (c).
+
+  Outcome: (a) passed at 78.65 %, (b) failed at 27.41 ms, (c) passed at 0.9446. On strict
+  accuracy it gains 0.27 pp, inside the seed spread. Every component it keeps had measured as
+  flat on its own, and the one component it dropped was the only part of v3 doing work.

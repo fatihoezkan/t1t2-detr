@@ -1,0 +1,104 @@
+name: exist_head_shared
+data:
+  train_path:
+  - data/t1_3500_t2_500_100k/n1/train.parquet
+  - data/t1_3500_t2_500_100k/n2/train.parquet
+  - data/t1_3500_t2_500_100k/n3/train.parquet
+  val_path:
+  - data/t1_3500_t2_500_100k/n1/val.parquet
+  - data/t1_3500_t2_500_100k/n2/val.parquet
+  - data/t1_3500_t2_500_100k/n3/val.parquet
+  test_path:
+  - data/t1_3500_t2_500_100k/n1/test.parquet
+  - data/t1_3500_t2_500_100k/n2/test.parquet
+  - data/t1_3500_t2_500_100k/n3/test.parquet
+  n_inputs: 64
+  train_limit_per_path: null
+  normalization: log_minmax
+  t1_min: 50.0
+  t1_max: 3500.0
+  t2_min: 5.0
+  t2_max: 500.0
+  signal_norm: max
+model:
+  input_dim: 64
+  hidden_dim: 512
+  fs_dim: 256
+  n_queries: 10
+  n_dlayers: 4
+  n_heads: 4
+  aux_loss: false
+  exist_head: shared
+  pretrain_path: null
+  freeze_encoder: false
+loss:
+  t1_weight: 1.0
+  t2_weight: 1.0
+  w_weight: 1.0
+  exist_weight: 0.1
+  aux_weight: 1.0
+  t1_t2_weighting: signal_fraction
+  signal_consistency: false
+  signal_consistency_weight: 0.0
+  signal_consistency_type: mse
+train:
+  epochs: 500
+  batch_size: 512
+  lr: 0.0001
+  weight_decay: 0.0001
+  opt_betas:
+  - 0.9
+  - 0.98
+  early_stopping: true
+  early_stopping_patience: 35
+  early_stopping_min_delta: 1.0e-05
+  selection_metric: parameter_loss
+  lr_scheduler: reduce_on_plateau
+  scheduler_factor: 0.5
+  scheduler_patience: 7
+  scheduler_min_lr: 1.0e-06
+  gradient_clip_norm: 1.0
+  device: null
+  seed: 20260724
+  num_workers: 4
+  ckpt_every: 1
+evaluation:
+  calibrate_threshold: true
+  fixed_threshold: 0.5
+  threshold_objective: parameter_set_error
+  threshold_min: 0.05
+  threshold_max: 0.95
+  threshold_steps: 91
+notes: "CHANGED: model.exist_head  joint -> shared.  Nothing else.\n(`joint` is the\
+  \ default, so the baseline YAML omits the field entirely and is unaffected.)\n\n\
+  The two wirings, and why the difference is interesting. In `joint` \u2014 what the\
+  \ frozen baseline uses\n\u2014 every query state is reduced to fs_dim/4 = 64 dimensions,\
+  \ all of them are concatenated, and ONE\nhead emits all n_queries existence logits\
+  \ at once (model.py). The head can therefore reason about\nthe whole set: \"two\
+  \ compartments are already claimed, so this third query is redundant.\" In\n`shared`,\
+  \ one small head with weights shared across queries is applied to each query state\n\
+  independently, structurally like the T1/T2/weight heads. No query can see any other,\
+  \ so existence\ndecisions cannot be coordinated.\n\nJohannes's prior thesis ran\
+  \ this comparison and found the joint form gives balanced query\nactivation, while\
+  \ independent heads can collapse onto a fixed subset of queries. Our model is\n\
+  already the joint version; this arm supplies the missing half of his comparison\
+  \ on our data.\n\nCONFOUNDER, must be stated: the two wirings do not have the same\
+  \ parameter count \u2014 4,391,172 for\nshared against 4,508,365 for joint, i.e.\
+  \ -2.60 %, because the concatenated head and the qu_red\nprojection are both dropped.\
+  \ So this arm changes capacity as well as wiring, and a degradation\ncannot be attributed\
+  \ to the loss of coordination alone. That is inherent to the comparison, not\nsomething\
+  \ a better config could fix.\n\nIMPLEMENTATION SAFETY, verified rather than asserted:\
+  \ with the default `joint`, the frozen\nbaseline checkpoint still loads with strict=True\
+  \ and produces a BIT-IDENTICAL forward output on a\nfixed input (same 4,508,365\
+  \ parameters, same SHA-256 of the output tensor). The `shared` branch\ncorrectly\
+  \ REFUSES the baseline weights instead of silently half-loading them. The 30-test\
+  \ suite\npasses unchanged.\n\nHypothesis: existence precision falls, because without\
+  \ coordination two queries can both claim the\nsame compartment and nothing suppresses\
+  \ the duplicate.\n\nMeasurement: existence_precision (baseline 0.960) and false_positive_compartments_per_voxel\n\
+  (baseline 0.077) from metrics_detr.json \u2014 those are where duplicate proposals\
+  \ surface \u2014 plus the\nper-query activation distribution to check for collapse\
+  \ onto a subset. POSITIVE for the baseline\ndesign (precision falls, false positives\
+  \ rise): set-level reasoning in the existence head is\nload-bearing, and Johannes's\
+  \ finding replicates on our data. NEGATIVE (no difference): the joint\nhead's extra\
+  \ complexity is unnecessary here and the simpler head is preferable \u2014 a useful\n\
+  simplification result. Note the capacity confounder in either direction.\n"

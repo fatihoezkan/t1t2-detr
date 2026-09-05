@@ -1,0 +1,96 @@
+name: exist_weight_03
+data:
+  train_path:
+  - data/t1_3500_t2_500_100k/n1/train.parquet
+  - data/t1_3500_t2_500_100k/n2/train.parquet
+  - data/t1_3500_t2_500_100k/n3/train.parquet
+  val_path:
+  - data/t1_3500_t2_500_100k/n1/val.parquet
+  - data/t1_3500_t2_500_100k/n2/val.parquet
+  - data/t1_3500_t2_500_100k/n3/val.parquet
+  test_path:
+  - data/t1_3500_t2_500_100k/n1/test.parquet
+  - data/t1_3500_t2_500_100k/n2/test.parquet
+  - data/t1_3500_t2_500_100k/n3/test.parquet
+  n_inputs: 64
+  train_limit_per_path: null
+  normalization: log_minmax
+  t1_min: 50.0
+  t1_max: 3500.0
+  t2_min: 5.0
+  t2_max: 500.0
+  signal_norm: max
+model:
+  input_dim: 64
+  hidden_dim: 512
+  fs_dim: 256
+  n_queries: 10
+  n_dlayers: 4
+  n_heads: 4
+  aux_loss: false
+  exist_head: joint
+  pretrain_path: null
+  freeze_encoder: false
+loss:
+  t1_weight: 1.0
+  t2_weight: 1.0
+  w_weight: 1.0
+  exist_weight: 0.3
+  aux_weight: 1.0
+  t1_t2_weighting: signal_fraction
+  signal_consistency: false
+  signal_consistency_weight: 0.0
+  signal_consistency_type: mse
+train:
+  epochs: 500
+  batch_size: 512
+  lr: 0.0001
+  weight_decay: 0.0001
+  opt_betas:
+  - 0.9
+  - 0.98
+  early_stopping: true
+  early_stopping_patience: 35
+  early_stopping_min_delta: 1.0e-05
+  selection_metric: parameter_loss
+  lr_scheduler: reduce_on_plateau
+  scheduler_factor: 0.5
+  scheduler_patience: 7
+  scheduler_min_lr: 1.0e-06
+  gradient_clip_norm: 1.0
+  device: null
+  seed: 20260724
+  num_workers: 4
+  ckpt_every: 1
+evaluation:
+  calibrate_threshold: true
+  fixed_threshold: 0.5
+  threshold_objective: parameter_set_error
+  threshold_min: 0.05
+  threshold_max: 0.95
+  threshold_steps: 91
+notes: "CHANGED: loss.exist_weight  0.1 -> 0.3.  Nothing else.\n\nWhat the knob controls:\
+  \ exist_weight multiplies the existence classification loss inside the\nper-voxel\
+  \ total (loss.py:134), and it also enters the Hungarian cost as ex_w * (1 - exist_prob)\n\
+  (loss.py:69), so raising it makes a confident query cheaper to assign as well as\
+  \ making the\nexistence head's own errors more expensive. Raising it buys detection\
+  \ at the expense of the\nregression terms, because the three parameter weights stay\
+  \ at 1.0 and the total is shared.\n\nTHIS ARM IS A TRADE-OFF MEASUREMENT, NOT AN\
+  \ ATTEMPT TO WIN. Count accuracy (78.54 %) is the\nweakest headline metric, and\
+  \ pushing existence should improve it \u2014 but the value of the run is\nthe exchange\
+  \ rate, not the improvement. Do not report it as a better model without also reporting\n\
+  what it cost.\n\nHypothesis: count accuracy and existence recall rise; median T1/T2\
+  \ relative error rises too,\nbecause gradient moves from the regression heads to\
+  \ the existence head. Selection interacts here\nin a way worth watching: train.selection_metric\
+  \ is parameter_loss, so the checkpoint is chosen on\nT1+T2+weight loss and does\
+  \ NOT reward the existence gain \u2014 the arm is being scored by a rule that\n\
+  is, deliberately, indifferent to what it improves. Keep the rule; note the interaction.\n\
+  \nMeasurement: read all four together from metrics_detr.json \u2014 count_accuracy\
+  \ (78.54 %),\nexistence_recall (0.926), t1_rel_median (5.63 %), t2_rel_median (6.90\
+  \ %). Then write the exchange\nrate as one sentence: \"+X points of count accuracy\
+  \ cost +Y points of median T1 relative error.\"\nPOSITIVE (count accuracy up, parameter\
+  \ error nearly flat): the baseline under-weighted existence\nand 0.3 is the better\
+  \ operating point. NEGATIVE (count accuracy up, parameter error clearly up):\nthe\
+  \ trade-off is real and the baseline's 0.1 is a defensible choice for a parameter-first\
+  \ thesis.\nBoth outcomes produce the same deliverable \u2014 a trade-off curve,\
+  \ which is worth more in a results\nchapter than a single tuned number.\n"

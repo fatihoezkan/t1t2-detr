@@ -1,0 +1,150 @@
+name: loss_uniform_seed20260726
+data:
+  train_path:
+  - data/t1_3500_t2_500_100k/n1/train.parquet
+  - data/t1_3500_t2_500_100k/n2/train.parquet
+  - data/t1_3500_t2_500_100k/n3/train.parquet
+  val_path:
+  - data/t1_3500_t2_500_100k/n1/val.parquet
+  - data/t1_3500_t2_500_100k/n2/val.parquet
+  - data/t1_3500_t2_500_100k/n3/val.parquet
+  test_path:
+  - data/t1_3500_t2_500_100k/n1/test.parquet
+  - data/t1_3500_t2_500_100k/n2/test.parquet
+  - data/t1_3500_t2_500_100k/n3/test.parquet
+  n_inputs: 64
+  train_limit_per_path: null
+  normalization: log_minmax
+  t1_min: 50.0
+  t1_max: 3500.0
+  t2_min: 5.0
+  t2_max: 500.0
+  signal_norm: max
+model:
+  input_dim: 64
+  hidden_dim: 512
+  fs_dim: 256
+  n_queries: 10
+  n_dlayers: 4
+  n_heads: 4
+  aux_loss: false
+  exist_head: joint
+  pretrain_path: null
+  freeze_encoder: false
+loss:
+  t1_weight: 1.0
+  t2_weight: 1.0
+  w_weight: 1.0
+  exist_weight: 0.1
+  aux_weight: 1.0
+  t1_t2_weighting: uniform
+  signal_consistency: false
+  signal_consistency_weight: 0.0
+  signal_consistency_type: mse
+  signal_consistency_target: noisy
+  signal_consistency_warmup_epochs: 0
+train:
+  epochs: 500
+  batch_size: 512
+  lr: 0.0001
+  weight_decay: 0.0001
+  opt_betas:
+  - 0.9
+  - 0.98
+  early_stopping: true
+  early_stopping_patience: 35
+  early_stopping_min_delta: 1.0e-05
+  selection_metric: parameter_loss
+  lr_scheduler: reduce_on_plateau
+  scheduler_factor: 0.5
+  scheduler_patience: 7
+  scheduler_min_lr: 1.0e-06
+  gradient_clip_norm: 1.0
+  device: null
+  seed: 20260726
+  num_workers: 4
+  ckpt_every: 1
+evaluation:
+  calibrate_threshold: true
+  fixed_threshold: 0.5
+  threshold_objective: parameter_set_error
+  threshold_min: 0.05
+  threshold_max: 0.95
+  threshold_steps: 91
+notes: 'CHANGED: loss.t1_t2_weighting  signal_fraction -> uniform.  Nothing else.
+
+
+  THE HIGHEST-VALUE RUN IN THE MATRIX. It decides whether the thesis''s central claim
+  survives.
+
+
+  The problem it solves: under signal_fraction, a compartment''s contribution to the
+  T1/T2 loss is
+
+  scaled by its true signal weight, so a w=0.05 pool carries roughly 15x less gradient
+  than a
+
+  w=0.75 pool (AUDIT_FINDINGS.md, comparing bin edges; 13x by bin medians). The baseline''s
+  headline
+
+  finding is that small compartments are recovered poorly. That has TWO candidate
+  explanations and
+
+  the present evidence cannot separate them:
+
+  (1) the Cramer-Rao information limit of a 64-measurement protocol, or
+
+  (2) the loss deliberately caring 15x less about those compartments.
+
+  Until they are separated, the claim "this is a limit of the protocol, not of the
+  model" is too
+
+  strong to put in a thesis.
+
+
+  Note precisely what the switch does: one config field, but three code paths, all
+  expressing the
+
+  same concept. (a) the Hungarian assignment cost is no longer multiplied by the true
+  weight
+
+  (loss.py:63-64); (b) matched per-pair T1/T2 errors are no longer multiplied by it
+  (loss.py:91-93);
+
+  (c) the per-voxel reduction becomes a plain mean over matched pairs instead of sum(w*e)/sum(w)
+
+  (loss.py:116-129). Report the arm as "removing signal-fraction weighting", not as
+  one line.
+
+
+  Hypothesis: uniform weighting redistributes gradient toward low-weight compartments,
+  so their
+
+  T1/T2 error falls and their detection rate rises, while dominant-pool error rises
+  slightly
+
+  because they no longer monopolise the loss.
+
+
+  Measurement: parameter_recovery_detr.json, the per-weight-bin table. Baseline reference:
+
+  w in [0.05,0.10] -> 65.2 % detection, 36.0 % median T1 error; w in [0.75,1.00] ->
+  100 %, 1.8 %.
+
+  POSITIVE (small-compartment error drops a lot, e.g. 36 % -> low 20s): the baseline
+  finding was
+
+  substantially a LOSS ARTEFACT. The Cramer-Rao claim must be weakened, and uniform
+  weighting
+
+  becomes the recommended configuration. This is a genuine result, not a setback.
+
+  NEGATIVE (small-compartment error barely moves): the poor recovery is a property
+  of the protocol''s
+
+  information content, not of the loss design. The Cramer-Rao claim gains real support
+  and can be
+
+  defended. Either outcome is publishable; only the un-run state is unpublishable.
+
+  '

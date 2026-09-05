@@ -1,0 +1,94 @@
+name: baseline_v3
+data:
+  train_path:
+  - data/t1_3500_t2_500_100k/n1/train.parquet
+  - data/t1_3500_t2_500_100k/n2/train.parquet
+  - data/t1_3500_t2_500_100k/n3/train.parquet
+  val_path:
+  - data/t1_3500_t2_500_100k/n1/val.parquet
+  - data/t1_3500_t2_500_100k/n2/val.parquet
+  - data/t1_3500_t2_500_100k/n3/val.parquet
+  test_path:
+  - data/t1_3500_t2_500_100k/n1/test.parquet
+  - data/t1_3500_t2_500_100k/n2/test.parquet
+  - data/t1_3500_t2_500_100k/n3/test.parquet
+  n_inputs: 64
+  train_limit_per_path: null
+  normalization: log_minmax
+  t1_min: 50.0
+  t1_max: 3500.0
+  t2_min: 5.0
+  t2_max: 500.0
+  signal_norm: max
+model:
+  input_dim: 64
+  hidden_dim: 512
+  fs_dim: 256
+  n_queries: 6
+  n_dlayers: 2
+  n_heads: 4
+  exist_head: shared
+  aux_loss: false
+  pretrain_path: null
+  freeze_encoder: false
+loss:
+  t1_weight: 1.0
+  t2_weight: 1.0
+  w_weight: 1.0
+  exist_weight: 0.1
+  aux_weight: 1.0
+  t1_t2_weighting: sqrt
+  signal_consistency: true
+  signal_consistency_weight: 1.0
+  signal_consistency_type: mse
+  signal_consistency_target: noisy
+  signal_consistency_warmup_epochs: 10
+train:
+  epochs: 500
+  batch_size: 512
+  lr: 0.0001
+  weight_decay: 0.0001
+  opt_betas:
+  - 0.9
+  - 0.98
+  early_stopping: true
+  early_stopping_patience: 35
+  early_stopping_min_delta: 1.0e-05
+  selection_metric: parameter_loss
+  lr_scheduler: reduce_on_plateau
+  scheduler_factor: 0.5
+  scheduler_patience: 7
+  scheduler_min_lr: 1.0e-06
+  gradient_clip_norm: 1.0
+  device: null
+  seed: 20260724
+  num_workers: 4
+  ckpt_every: 1
+evaluation:
+  calibrate_threshold: true
+  fixed_threshold: 0.5
+  threshold_objective: parameter_set_error
+  threshold_min: 0.05
+  threshold_max: 0.95
+  threshold_steps: 91
+notes: |
+  Combined model v3. Five changes at once relative to baseline_v2_reproduction, so nothing
+  in this run can be attributed to any one of them:
+
+    model.n_dlayers         4 -> 2
+    model.n_queries         10 -> 6
+    model.exist_head        joint -> shared
+    loss.t1_t2_weighting    signal_fraction -> sqrt   (a middle ground between the two)
+    loss.signal_consistency on, noisy target, weight 1.0, ten warmup epochs
+
+  Each piece was motivated by the single-change matrix, but the interactions were never
+  measured. The two decomposition arms (baseline_v3_no_sqrt, baseline_v3_no_physics) exist
+  to take the result apart afterwards.
+
+  Success criteria, written down before the run was submitted:
+    (a) count accuracy >= 78.1 %  (the reproduction's 78.89 minus the 0.80 pp floor of the time)
+    (b) median relative T1 error of the smallest compartments (w 0.05-0.10) <= 25 %
+    (c) pooled median absolute T1 error <= 27 ms
+  If (a) fails the combination is rejected regardless of (b) and (c).
+
+  Outcome: (a) failed at 77.49 %, (b) failed at 29.62 %, (c) passed at 25.45 ms. Rejected.
