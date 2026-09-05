@@ -1,4 +1,29 @@
-# The signal-consistency loss
+# t1t2
+
+The model, its loss, the training loop and the scoring code. One run is one YAML under
+`configs/`; `python -m t1t2.experiment --config <yaml>` trains it, scores it on the test
+split and writes `results/<name>/`. Run from the repository root with `PYTHONPATH=.:datagen`.
+
+| file | what it does |
+|---|---|
+| `config.py` | the run definition as typed dataclasses; a misspelled key is an error, and a retired key is accepted only at the value every run used |
+| `data.py` | parquet to tensors: log-min-max normalisation of T1/T2 for the sigmoid heads, per-voxel peak normalisation of the signal, the table width read from the columns |
+| `model.py` | MLP encoder, learned queries, transformer decoder, per-query heads for T1, T2, weight and existence; two existence-head wirings |
+| `loss.py` | Hungarian matching, regression on the matched pairs, existence BCE; the `t1_t2_weighting` switch the thesis is about |
+| `physics.py` | the forward model on the training side, in numpy and in differentiable torch |
+| `physics_loss.py` | the signal-consistency term, described below |
+| `train.py` | the training loop: early stopping on the validation parameter loss, resumable checkpoints, `history.json` |
+| `experiment.py` | train, calibrate the existence threshold on validation, score the test split and the fixed-SNR ladder, write `summary.json` |
+| `eval.py` | predictions to metrics: matching to the truth, count and parameter errors, per-count breakdown, physics checks, the threshold search |
+| `nd_metrics.py` | the Normalised Distance criterion, mAP and the exact metrics the thesis reports |
+| `runs.py` | `load_run("results/<name>")`: config, best checkpoint, normaliser and log spans, for every script under `evaluation/` |
+| `device.py` | CUDA, then Apple MPS, then CPU |
+
+The docstring at the top of each file says why the non-obvious choices were made. The
+evaluation protocol is in [evaluation/README.md](../evaluation/README.md) and the experiment
+matrix in [configs/README.md](../configs/README.md).
+
+## The signal-consistency loss
 
 The Hungarian loss supervises parameters given a matching. This term supervises the
 predicted set as a whole, through the physics, with no matching involved: the prediction is
@@ -16,7 +41,7 @@ The implementation is `t1t2/physics_loss.py`, the differentiable forward model i
 `t1t2/physics.py`, and the two arms are `configs/physics_noisy.yaml` and
 `configs/physics_clean.yaml`.
 
-## Design choices
+### Design choices
 
 Gating is soft. Every query contributes `w_q * sigmoid(exist_logit_q)` to the resynthesis,
 with no Hungarian indices involved. That keeps the term differentiable end to end and gives
@@ -39,13 +64,12 @@ its noisy target rather than from the physics term.
 
 The metric is mean squared error, not a Rician likelihood. The simulated signals keep the
 sign of the inversion recovery, so Gaussian noise and MSE are the correct likelihood. The
-Rician caveat from the relaxometry literature applies to magnitude data, which this is not,
-and requesting `rician` raises an error rather than quietly doing the wrong thing.
+Rician caveat from the relaxometry literature applies to magnitude data, which this is not.
 
 The term is applied to the final prediction only, never to the auxiliary heads. Asking the
 first decoder layer to already explain the measured signal is not a useful constraint.
 
-## Result
+### Result
 
 Both arms came out flat. `physics_noisy` reaches mAP at 7 % of 0.6751 and strict accuracy
 of 58.05 %, against the reference's 0.6671 and 57.98 %; `physics_clean` reaches 0.6672 and
@@ -62,7 +86,7 @@ pooled median absolute T1 error moves from 28.50 ms to 26.71 ms with the measure
 and 26.94 ms with the clean one), but not the faint compartments it was meant for. It is a
 result about this problem at this protocol, not about physics-informed losses in general.
 
-## Reproducing
+### Reproducing
 
 ```bash
 PYTHONPATH=.:datagen python -m t1t2.experiment --config configs/physics_noisy.yaml
@@ -73,5 +97,4 @@ The checks that were run before those arms were submitted are kept as tests in
 `tests/test_physics_loss.py`: the denormalisation and signal-normalisation round trips
 against the dataset's own transforms, agreement between the clean target and the generator,
 a near-zero loss when the prediction is exactly right, a clear separation when it is wrong,
-gradient flow into all four output channels, gated-off queries contributing nothing, and an
-error when a Rician term is requested.
+gradient flow into all four output channels, and gated-off queries contributing nothing.

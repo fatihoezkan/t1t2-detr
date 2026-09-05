@@ -5,7 +5,7 @@ Reads results/<run>/summary.json and config.yaml. Prints metrics as rows and run
 reference first, with a signed delta per arm, then a per-arm verdict from the config diff
 (single change / NOT INTERPRETABLE / DIFFERENT DATASET / CONTROL). Writes comparison.md,
 comparison_metrics.csv and comparison_arms.csv to results/_comparison/. One run per arm, so no
-error bars; see docs/experiments.md.
+error bars; see configs/README.md.
     python evaluation/compare_experiments.py --all | <run> [<run> ...]
 """
 from __future__ import annotations
@@ -382,7 +382,7 @@ FOOTER = """
 
 ## How to read this table
 
-**One change per arm.** Every arm in `docs/experiments.md` makes exactly one change relative to
+**One change per arm.** Every arm in `configs/README.md` makes exactly one change relative to
 the reference run. Most are literally one config field; a few touch a small group of fields that
 together switch one feature on, and those are collapsed here into a single diff. The arm table
 above states, per arm, whether that holds. An arm marked `NOT INTERPRETABLE` has more than one
@@ -402,7 +402,7 @@ right, since it says the error is concentrated in a minority of hard voxels.
 
 **One seed per arm, so there are no error bars here.** Every run in this table is seed
 20260724, run once, which gives a point estimate and no interval. The measured spread across
-repeated training of the same config is reported in `docs/experiments.md`; a delta smaller than
+repeated training of the same config is reported in `configs/README.md`; a delta smaller than
 that spread should be reported as within run-to-run variation rather than as an effect.
 
 **A different test set is a different question.** An arm marked `DIFFERENT DATASET` is scored on
@@ -416,7 +416,7 @@ the parameter count and the existence class balance along with the query budget.
 `n_queries = 4` with three compartments the existence `pos_weight` reaches its clamp floor of
 0.50, where the term stops up-weighting positives and begins down-weighting them.
 `exist_head_shared` changes the parameter count by 2.60 %. Each of these belongs in the same
-sentence as its result. The numbers are in `docs/experiments.md`.
+sentence as its result. The numbers are in `configs/README.md`.
 """
 
 
@@ -433,7 +433,7 @@ def write_report(runs: list[dict], out_dir: Path, notes_extra: list[str]) -> dic
     parts = [
         "# Experiment comparison against the reference run",
         "",
-        f"**Reference:** `{baseline['name']}`, see `docs/experiments.md`. "
+        f"**Reference:** `{baseline['name']}`, see `configs/README.md`. "
         f"Never retrained, never re-evaluated.",
         f"**Runs compared:** {len(runs)} "
         f"({len(runs) - 1} arm{'s' if len(runs) != 2 else ''} besides the reference)",
@@ -467,7 +467,7 @@ def write_report(runs: list[dict], out_dir: Path, notes_extra: list[str]) -> dic
             "degrades steadily as the true compartment weight falls. Whether that gradient is "
             "the information limit of a 64-measurement protocol or an artefact of "
             "`signal_fraction` loss weighting is what the `loss_uniform` arm was run to "
-            "separate; see `docs/experiments.md`.",
+            "separate; see `configs/README.md`.",
             "",
             markdown_table(wb_header, wb_rows),
         ]

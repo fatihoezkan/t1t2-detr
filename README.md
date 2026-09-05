@@ -55,7 +55,6 @@ t1t2-detr/
 ├── figures/, tables/       their outputs, as used in the thesis
 ├── notebooks/              thesis.ipynb, the executed notebook that walks through data, examples and results
 ├── tests/                  59 tests for the t1t2 package
-├── docs/                   data generation, evaluation protocol, experiments, physics loss
 └── slurm/                  a generic cluster job template
 ```
 
@@ -127,7 +126,10 @@ compartments (T1, T2, w) --forward model--> 64-point signal --noise--> parquet r
 | `evaluation/` | threshold calibration and sweeps, ND evaluation and its summary table, paired tests, the one-change comparison, the SNR ladder |
 
 The docstring at the top of each file says what it does and why the non-obvious choices were
-made. `docs/` has the longer explanations.
+made. Every folder has a README with the longer explanation: the data generator and its
+sampling constraint in [datagen/](datagen/README.md), the package and the signal-consistency
+loss in [t1t2/](t1t2/README.md), the experiment matrix and its numbers in
+[configs/](configs/README.md), and the evaluation protocol in [evaluation/](evaluation/README.md).
 
 ## Setup
 
@@ -276,7 +278,7 @@ against 57.63 % and 0.6642 for the reference. It is the final model of the thesi
 Five further models in `configs/combined/` change several things at once, each with success
 criteria written into its config before training; none of them beat the single change. The
 per-seed numbers, the combined models, the physics arms and the fixed-SNR ladder are in
-[docs/experiments.md](docs/experiments.md).
+[configs/README.md](configs/README.md).
 
 What the loss change shows: under the inherited weighting a 5 % compartment carries about
 fifteen times less gradient than a 75 % one. Removing that scaling places the faint
@@ -302,7 +304,7 @@ and the fixed 0.75 of the ND tables. They are different quantities.
 The fields `t1_mae_ms`, `t2_mae_ms` and `w_mae` in `metrics_detr.json` are medians. The
 finished runs cannot be renamed, so the aliases `t1_abs_median_ms`, `t2_abs_median_ms` and
 `w_abs_median` exist and the comparison script uses those. Nothing is ever tuned on the test
-split. [docs/evaluation.md](docs/evaluation.md) has the full protocol.
+split. [evaluation/README.md](evaluation/README.md) has the full protocol.
 
 ## Limitations
 

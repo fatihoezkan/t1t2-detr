@@ -3,7 +3,20 @@
 The model emits a fixed number of candidate compartments per voxel, most of which it is
 rejecting. Turning that into a number that can be compared between runs takes three
 decisions: what counts as a hit, where the operating point sits, and how large a difference
-has to be before it means anything.
+has to be before it means anything. The scripts in this folder make those decisions the same
+way for every run; `main.py` at the repository root runs them in order.
+
+| script | what it writes |
+|---|---|
+| `run_nd_evaluation.py` | `results/nd_evaluation/<run>.json`: mAP, exact metrics and the per-voxel ND records of one run |
+| `calibrate_threshold.py` | `results/threshold_val/<run>.json`: the validation-calibrated threshold and the test accuracy at it |
+| `threshold_sweep.py` | `results/threshold_sweep/<run>.json`: every metric at every threshold, in 2D and 3D |
+| `summarize_nd_evaluation.py` | the combined ND table across runs and the paired mAP deltas |
+| `compare_experiments.py` | the one-change comparison against the reference, with a verdict per arm |
+| `paired_tests.py` | McNemar and paired-bootstrap tests of every arm against the reference |
+| `snr_ladder.py` | the fixed-SNR figure and table |
+| `query_analysis.py` | per-query usage of one run |
+| `figures/`, `tables/` | one script per thesis figure and table; each folder's README gives the order |
 
 ## What counts as a hit
 
@@ -32,7 +45,7 @@ mAP at tau is COCO-style 101-point interpolated average precision with the exist
 probability as the confidence score, computed at tau = 5, 7 and 10 % with no existence
 threshold. Being threshold-free, it measures how well the existence head ranks its own
 queries, which is a property of the model rather than of the operating point. It is the
-primary metric in [experiments.md](experiments.md).
+primary metric in [the experiments page](../configs/README.md).
 
 Strict voxel accuracy is the fraction of voxels where the model reported the right number
 of compartments and every one of them fell inside the ND tolerance. It is harsher than
@@ -111,6 +124,9 @@ reference run the median T1 absolute error is 28.5 ms against a mean of 115.4 ms
 of four, which says the error is concentrated in a minority of hard voxels.
 
 ## Running it
+
+`python main.py evaluate aggregate figures tables notebook` from the repository root runs
+everything below in order and skips what already exists. One by one:
 
 ```bash
 # per-run ND / mAP evaluation, writes results/nd_evaluation/<run>.json (needs the checkpoint)

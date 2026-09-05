@@ -1,7 +1,7 @@
 """Tests for the signal-consistency loss (t1t2.physics_loss).
 
 These are the checks run before the physics arms were submitted; the methods they verify are
-described in docs/physics-loss.md.
+described in t1t2/README.md.
 """
 from __future__ import annotations
 

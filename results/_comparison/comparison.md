@@ -1,6 +1,6 @@
 # Experiment comparison against the reference run
 
-**Reference:** `baseline_v2_reproduction`, see `docs/experiments.md`. Never retrained, never re-evaluated.
+**Reference:** `baseline_v2_reproduction`, see `configs/README.md`. Never retrained, never re-evaluated.
 **Runs compared:** 26 (25 arms besides the reference)
 
 ## 1. Metrics
@@ -76,7 +76,7 @@ One row per run. `single change` is the only verdict under which a delta can be 
 
 ## 3. Recovery by true compartment weight
 
-The main finding sits in this block rather than in the aggregates: recovery degrades steadily as the true compartment weight falls. Whether that gradient is the information limit of a 64-measurement protocol or an artefact of `signal_fraction` loss weighting is what the `loss_uniform` arm was run to separate; see `docs/experiments.md`.
+The main finding sits in this block rather than in the aggregates: recovery degrades steadily as the true compartment weight falls. Whether that gradient is the information limit of a 64-measurement protocol or an artefact of `signal_fraction` loss weighting is what the `loss_uniform` arm was run to separate; see `configs/README.md`.
 
 | Weight bin | quantity             | baseline_v2_reproduction | aux_loss | Δ                 | baseline_seed20260725 | Δ                 | baseline_seed20260726 | Δ                 | baseline_seed20260727 | Δ                 | baseline_v3 | Δ                 | baseline_v3_no_physics | Δ                 | baseline_v3_no_sqrt | Δ                 | baseline_v4 | Δ                 | data_loguniform | Δ                 | decoder_2 | Δ                 | decoder_6 | Δ                 | exist_head_shared | Δ                 | exist_weight_03 | Δ                  | final_uniform_q6_seed20260724 | Δ                  | final_uniform_q6_seed20260725 | Δ                 | final_uniform_q6_seed20260726 | Δ                  | final_uniform_q6_seed20260727 | Δ                  | loss_uniform | Δ                  | loss_uniform_seed20260725 | Δ                  | loss_uniform_seed20260726 | Δ                 | loss_uniform_seed20260727 | Δ                  | physics_clean | Δ                 | physics_noisy | Δ                 | queries_4 | Δ                 | queries_6 | Δ                 |
 |------------|---------------------:|-------------------------:|---------:|------------------:|----------------------:|------------------:|----------------------:|------------------:|----------------------:|------------------:|------------:|------------------:|-----------------------:|------------------:|--------------------:|------------------:|------------:|------------------:|----------------:|------------------:|----------:|------------------:|----------:|------------------:|------------------:|------------------:|----------------:|-------------------:|------------------------------:|-------------------:|------------------------------:|------------------:|------------------------------:|-------------------:|------------------------------:|-------------------:|-------------:|-------------------:|--------------------------:|-------------------:|--------------------------:|------------------:|--------------------------:|-------------------:|--------------:|------------------:|--------------:|------------------:|----------:|------------------:|----------:|------------------:|
@@ -101,13 +101,13 @@ The main finding sits in this block rather than in the aggregates: recovery degr
 
 ## Data notes
 
-- `snr_ladder` was requested but could not be read: /Users/fatihozkan/Desktop/Thesis/t1t2-detr/results/snr_ladder: no config.yaml, so its config cannot be diffed.
+- `snr_ladder` was requested but could not be read: /Users/fatihozkan/Desktop/Thesis_clean/t1t2-detr/results/snr_ladder: no config.yaml, so its config cannot be diffed.
 
 ---
 
 ## How to read this table
 
-**One change per arm.** Every arm in `docs/experiments.md` makes exactly one change relative to
+**One change per arm.** Every arm in `configs/README.md` makes exactly one change relative to
 the reference run. Most are literally one config field; a few touch a small group of fields that
 together switch one feature on, and those are collapsed here into a single diff. The arm table
 above states, per arm, whether that holds. An arm marked `NOT INTERPRETABLE` has more than one
@@ -127,7 +127,7 @@ right, since it says the error is concentrated in a minority of hard voxels.
 
 **One seed per arm, so there are no error bars here.** Every run in this table is seed
 20260724, run once, which gives a point estimate and no interval. The measured spread across
-repeated training of the same config is reported in `docs/experiments.md`; a delta smaller than
+repeated training of the same config is reported in `configs/README.md`; a delta smaller than
 that spread should be reported as within run-to-run variation rather than as an effect.
 
 **A different test set is a different question.** An arm marked `DIFFERENT DATASET` is scored on
@@ -141,5 +141,5 @@ the parameter count and the existence class balance along with the query budget.
 `n_queries = 4` with three compartments the existence `pos_weight` reaches its clamp floor of
 0.50, where the term stops up-weighting positives and begins down-weighting them.
 `exist_head_shared` changes the parameter count by 2.60 %. Each of these belongs in the same
-sentence as its result. The numbers are in `docs/experiments.md`.
+sentence as its result. The numbers are in `configs/README.md`.
 

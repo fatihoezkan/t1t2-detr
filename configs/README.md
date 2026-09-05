@@ -52,7 +52,7 @@ spread is run-to-run variation and is reported as flat.
 
 Strict voxel accuracy requires the right number of compartments and every one of them
 inside the ND tolerance. The threshold is calibrated per run on validation, which is why it
-differs between rows; [evaluation.md](evaluation.md) explains why that is the fairer
+differs between rows; [the evaluation page](../evaluation/README.md) explains why that is the fairer
 protocol. mAP is threshold-free. Every arm is a single run at seed 20260724 and is compared
 against the reference at the same seed.
 
@@ -157,7 +157,8 @@ target, 57.86 % and 0.6672 for the clean one, against 57.98 % and 0.6671). They 
 the parameters of the compartments the signal already pins down: the pooled median absolute
 T1 error moves from 28.50 ms to 26.71 ms with the measured target and to 26.94 ms with the
 noise-free one, single runs each. The faint compartments the term was meant for do not
-benefit, and the choice of target makes no difference. [physics-loss.md](physics-loss.md)
+benefit, and the choice of target makes no difference. The
+[signal-consistency section of the t1t2 README](../t1t2/README.md#the-signal-consistency-loss)
 discusses the design and the reading.
 
 ## The fixed-SNR ladder
@@ -214,5 +215,7 @@ PYTHONPATH=.:datagen python evaluation/run_nd_evaluation.py results/loss_uniform
 PYTHONPATH=.:datagen python evaluation/calibrate_threshold.py loss_uniform
 ```
 
+`python main.py train evaluate --runs loss_uniform` does the same from the repository root.
 The configs reference dataset paths under `data/`. Generate the families first with the
-commands in the README, or edit the paths to point at your own.
+commands in the [root README](../README.md#data) or `python main.py data`, or edit the paths
+to point at your own.

@@ -1,8 +1,19 @@
 # Data generation
 
 There are no public T1-T2 correlation datasets at the density this work needs, so all
-training data is simulated. This document describes what is simulated, what is deliberately
-not, and the one sampling choice that affects how the results may be read.
+training data is simulated. This folder is the generator. This page describes what is
+simulated, what is deliberately not, and the one sampling choice that affects how the
+results may be read.
+
+| file | what it does |
+|---|---|
+| `voxel_simulator/protocol.py` | the 8 x 8 acquisition protocol, read from `data/ti_te_dict.mat` exactly as stored |
+| `voxel_simulator/physics.py` | the inversion-recovery multi-echo forward model |
+| `voxel_simulator/sampler.py` | random compartments with T1 > T2, Dirichlet weights and SNR, seeded per voxel |
+| `voxel_simulator/noise.py` | signed additive Gaussian noise, drawn as a standardised z and scaled |
+| `voxel_simulator/generate.py` | one family: train, val, test, the fixed-SNR ladder and the manifest |
+| `run_generator.py` | the command-line entry point |
+| `tests/` | 68 tests: `cd datagen && PYTHONPATH=. python -m pytest tests -q` |
 
 ## The forward model
 
@@ -87,7 +98,7 @@ breaks a flat log-T1 marginal.
 The second mode also makes the T2 marginal worse: when T1 is small the conditional T2 range
 is narrow, so the density piles up at small T2. The confounder moves from T1 to T2 rather
 than disappearing. The `data_loguniform` arm trains on such a dataset; its results are in
-[experiments.md](experiments.md).
+[the experiments page](../configs/README.md).
 
 The mode is recorded in each dataset's `manifest.json` under `physics.sampling`, because
 which error curve can be trusted depends on which sampler produced the data.
@@ -124,7 +135,8 @@ under `data/`.
 
 ## Usage
 
-The exact commands for the two families used in the thesis are in the README. In general:
+The exact commands for the two families used in the thesis are in the
+[root README](../README.md#data), and `python main.py data` runs them. In general:
 
 ```bash
 # one family per compartment count
