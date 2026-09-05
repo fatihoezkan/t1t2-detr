@@ -24,7 +24,7 @@ from .eval import (
     threshold_calibration_figure,
     true_compartments,
 )
-from .train import train
+from .train import SELECTION_METRIC, train
 
 
 def run_experiment(config_path, results_dir=None, max_epochs=None, limit=None,
@@ -49,7 +49,7 @@ def run_experiment(config_path, results_dir=None, max_epochs=None, limit=None,
         "epoch_budget": max_epochs if max_epochs is not None else cfg.train.epochs,
         "best_epoch": None if best is None else int(best["epoch"]) + 1,
         "best_val": None if best is None else float(best["val"]),
-        "selection_metric": cfg.train.selection_metric,
+        "selection_metric": SELECTION_METRIC,
         "best_total_val_loss": (
             None if best is None else float(best.get("val_loss", best["val"]))
         ),
@@ -78,7 +78,7 @@ def run_experiment(config_path, results_dir=None, max_epochs=None, limit=None,
         val_ds = VoxelDataset(cfg.data.val_path, cfg.data, normalizer, limit=limit)
         log(
             f"[{cfg.name}] calibrating existence threshold on validation "
-            f"({len(val_ds)} voxels; objective={cfg.evaluation.threshold_objective})"
+            f"({len(val_ds)} voxels)"
         )
         query_outputs = detr_query_outputs(model, val_ds, device, normalizer)
         thresholds = np.linspace(
@@ -90,7 +90,6 @@ def run_experiment(config_path, results_dir=None, max_epochs=None, limit=None,
             query_outputs,
             true_compartments(val_ds),
             thresholds=thresholds,
-            objective=cfg.evaluation.threshold_objective,
         )
         exist_thresh = float(calibration["selected_threshold"])
         with open(Path(results_dir) / "threshold_calibration.json", "w") as f:
@@ -157,6 +156,7 @@ def _snr_ladder_paths(test_path) -> dict:
 
 
 def main():
+    """Train and evaluate the experiment chosen on the command line."""
     ap = argparse.ArgumentParser(description="Train and evaluate one T1T2-DETR experiment.")
     ap.add_argument("--config", required=True, help="Path to the experiment YAML.")
     ap.add_argument("--results-dir", default=None, help="Override results/<name>/.")

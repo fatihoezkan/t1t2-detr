@@ -10,13 +10,9 @@ Writes results/threshold_sweep/<run>.json. Usage: python3 evaluation/threshold_s
 from __future__ import annotations
 import json, sys, time
 from pathlib import Path
-import torch
 
-from t1t2.config import load_config
-from t1t2.data import TargetNormalizer, VoxelDataset
-from t1t2.eval import detr_query_outputs, true_compartments
-from t1t2.model import build_model
-from t1t2.nd_metrics import log_spans, dataset_records, TAU_BASE
+from t1t2.nd_metrics import dataset_records, TAU_BASE
+from t1t2.runs import load_run
 
 GRID = [round(0.05 * i, 2) for i in range(1, 20)]      # 0.05 .. 0.95
 
@@ -80,20 +76,12 @@ def score_by_k(recs, ngt, T):
 
 
 def run_one(run, device="cpu"):
-    rd = Path("results") / run
-    cfg = load_config(rd / "config.yaml")
-    model = build_model(cfg.model)
-    ck = torch.load(rd / "checkpoints" / "best.pt", map_location="cpu", weights_only=True)
-    model.load_state_dict(ck["model"] if "model" in ck else ck["state_dict"])
-    model.to(device).eval()
-    norm = TargetNormalizer.from_config(cfg.data)
-    spans = log_spans(cfg.data.t1_min, cfg.data.t1_max, cfg.data.t2_min, cfg.data.t2_max)
-    ds = VoxelDataset(cfg.data.test_path, cfg.data, norm)
-    q = detr_query_outputs(model, ds, torch.device(device), norm)
-    trues = true_compartments(ds)
+    """Score one model across confidence thresholds in 2D and 3D."""
+    loaded = load_run(Path("results") / run, device)
+    q, trues = loaded.predict("test")
     out = {"run": run, "n_voxels": len(trues), "tau": TAU_BASE}
     for dim, inc_w in (("2d", False), ("3d", True)):
-        recs, ngt = dataset_records(q, trues, spans, TAU_BASE, exist_thresh=0.0,
+        recs, ngt = dataset_records(q, trues, loaded.spans, TAU_BASE, exist_thresh=0.0,
                                     include_weight=inc_w)
         out[dim] = [score(recs, ngt, T) for T in GRID]
         out[dim + "_by_k"] = {str(T): score_by_k(recs, ngt, T) for T in (0.5, 0.75)}
@@ -101,6 +89,7 @@ def run_one(run, device="cpu"):
 
 
 def main():
+    """Save threshold sweeps and print each run's best test accuracy."""
     runs = sys.argv[1:]
     outdir = Path("results/threshold_sweep")
     outdir.mkdir(parents=True, exist_ok=True)

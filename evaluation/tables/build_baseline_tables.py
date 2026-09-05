@@ -21,6 +21,7 @@ SEED2 = "baseline_v2_reproduction"
 
 
 def _json(path):
+    """Read a saved JSON file."""
     return json.load(open(path))
 
 
@@ -30,14 +31,17 @@ def _optional(path):
 
 
 def sweep(run):
+    """Load a run's scores across confidence thresholds."""
     return _json(RES / "threshold_sweep" / f"{run}.json")
 
 
 def at(run, dim, theta, key):
+    """Get one metric at the requested threshold and dimension."""
     return next(r for r in sweep(run)[dim] if abs(r["threshold"] - theta) < 1e-9)[key]
 
 
 def map7(run):
+    """Read the run's 2D and 3D average precision at 7% tolerance."""
     m2 = _json(RES / "nd_evaluation" / f"{run}.json")["map"]["map@7"]
     a = _optional(RES / "nd_evaluation" / "tables_2d_3d.json")
     b = _optional(RES / "nd_evaluation" / "tables_2d_3d_extra.json")
@@ -46,8 +50,10 @@ def map7(run):
 
 
 def headline():
+    """Build the main comparison table for the two baseline runs."""
     rows = []
     def add(label, f, digits=2):
+        """Add one metric and its difference between the baseline runs."""
         a, b = f(SEED1), f(SEED2)
         rows.append((label, f"{a:.{digits}f}", f"{b:.{digits}f}", f"{b - a:+.{digits}f}"))
     for dim in ("2d", "3d"):
@@ -73,9 +79,12 @@ def headline():
 
 
 def own():
+    """Compare baseline runs at their individually fitted thresholds."""
     def m(run):
+        """Read a run's saved evaluation metrics."""
         return _json(RES / run / "metrics_detr.json")
     def s(run):
+        """Read a run's saved experiment summary."""
         return _json(RES / run / "summary.json")
     a, b = m(SEED1), m(SEED2)
     ta = s(SEED1)["threshold_calibration"]["selected_threshold"]
@@ -116,6 +125,7 @@ def by_k(run, dim, key, k, theta="0.75"):
 
 
 def review_stats():
+    """Load the shared review statistics."""
     return _json(RES / "review_stats.json")
 
 
@@ -134,6 +144,7 @@ def per_k():
     # i.e. medians over matched compartments at each run's own fitted threshold (the protocol
     # under which parameter errors are reported throughout the thesis).
     def rel_errs(k, p):
+        """Summarize relative error across seeds for one compartment count."""
         vals = [_json(RES / r / "metrics_detr.json")[f"n{k}_{p}_rel_median"] * 100
                 for r in SEED_RUNS]
         return sum(vals) / len(vals), max(vals) - min(vals)
@@ -170,6 +181,7 @@ def seed_spread():
     accuracy that is the ruler itself and the K=3 strict accuracy.
     """
     def val(run):
+        """Collect a run's validation and recovery results for the table."""
         cal = _json(RES / "threshold_val" / f"{run}.json")
         smry = _json(RES / run / "summary.json")
         rec = _json(RES / run / "parameter_recovery_detr.json")
@@ -219,6 +231,7 @@ def seed_spread():
 
 
 def main():
+    """Write the available baseline and seed-variation tables."""
     TABLES.mkdir(parents=True, exist_ok=True)
     jobs = []
     if (RES / "threshold_sweep" / f"{SEED1}.json").exists() and (RES / SEED1 / "metrics_detr.json").exists():

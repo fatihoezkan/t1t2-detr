@@ -57,6 +57,7 @@ VERDICT = {}   # filled in from the measurements themselves
 
 
 def _json(path):
+    """Read a saved JSON file."""
     return json.load(open(path))
 
 
@@ -66,6 +67,7 @@ def _optional(path):
 
 
 def sweep(run, dim, theta, key):
+    """Get a saved metric at the requested threshold and dimension."""
     d = _json(RES / "threshold_sweep" / f"{run}.json")[dim]
     return next(r for r in d if abs(r["threshold"] - theta) < 1e-9)[key]
 
@@ -85,6 +87,7 @@ def map7(run):
 
 
 def load(run):
+    """Collect a run's accuracy, precision, and parameter-error results."""
     m = _json(RES / run / "metrics_detr.json")
     rec = _json(RES / run / "parameter_recovery_detr.json")
     summ = _json(RES / run / "summary.json")
@@ -130,16 +133,19 @@ def verdict_for(x, ref):
 
 
 def sgn(v, digits, band=None):
+    """Format a signed change, bolding it when it exceeds seed variation."""
     t = f"{v:+.{digits}f}"
     return r"\textbf{" + t + "}" if band is not None and abs(v) > band else t
 
 
 def bold_if(val, delta, band, digits=2):
+    """Bold a value when its change exceeds seed variation."""
     t = f"{val:.{digits}f}"
     return r"\textbf{" + t + "}" if abs(delta) > band else t
 
 
 def mini(run, display, ref):
+    """Build one run's comparison table against the reference."""
     x = load(run)
     rows = [
         (r"Strict accuracy 2D, $\theta = 0.50$ (\%)", ref["a2_50"], x["a2_50"], 2, FLOOR_50),
@@ -179,6 +185,7 @@ def mini(run, display, ref):
 
 
 def scorecard(ref):
+    """Build the combined accuracy table for all experiment variants."""
     out = [r"\begin{tabular}{llrrrrrl}", r"\toprule",
            r"\multirow{2}{*}{Run} & \multirow{2}{*}{What was changed} & "
            r"\multicolumn{2}{c}{strict acc.\ 2D} & \multicolumn{2}{c}{strict acc.\ 3D} & "
@@ -205,6 +212,7 @@ def scorecard(ref):
 
 
 def main():
+    """Write the combined scorecard and each run's comparison table."""
     ARMS.mkdir(parents=True, exist_ok=True)
     ref = load(REFERENCE)
     for run, _d, _c in MATRIX + PHYSICS:

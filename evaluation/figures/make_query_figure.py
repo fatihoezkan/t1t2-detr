@@ -6,14 +6,12 @@ plane. Reads results/<run>/{config.yaml, summary.json, checkpoints/best.pt} and 
 parquets named in the config; inference runs on the CPU. Writes figures/11_queries.png.
 Usage: PYTHONPATH=.:datagen python3 evaluation/figures/make_query_figure.py
 """
-import json
 import os
 import sys
 from pathlib import Path
 
 import matplotlib as mpl
 import numpy as np
-import torch
 
 mpl.use("Agg")
 import matplotlib.patheffects as pe  # noqa: E402
@@ -24,10 +22,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 os.chdir(ROOT)
 
-from t1t2.config import load_config  # noqa: E402
-from t1t2.data import TargetNormalizer, VoxelDataset  # noqa: E402
-from t1t2.eval import detr_query_outputs  # noqa: E402
-from t1t2.model import build_model  # noqa: E402
+from t1t2.runs import load_run  # noqa: E402
 
 RUN = "baseline_v2_reproduction"
 OUT = ROOT / "figures" / "11_queries.png"
@@ -43,10 +38,14 @@ HALO = [pe.Stroke(linewidth=2.4, foreground="white"), pe.Normal()]
 
 
 def loglabels(ax, which="both"):
-    def fmt(v, _): return (f"{v/1000:.1f}".rstrip("0").rstrip(".") + "k") if v >= 1000 else f"{v:g}"
+    """Add readable tick labels to logarithmic axes."""
+    def fmt(v, _):
+        """Shorten large tick values using k for thousands."""
+        return (f"{v/1000:.1f}".rstrip("0").rstrip(".") + "k") if v >= 1000 else f"{v:g}"
     for axis, (lo, hi) in ([(ax.xaxis, ax.get_xlim())] if which in ("both", "x") else []) + \
                           ([(ax.yaxis, ax.get_ylim())] if which in ("both", "y") else []):
         def locs(subs, n):
+            """Find log-scale ticks within the visible axis limits."""
             L = mticker.LogLocator(subs=subs, numticks=n); L.set_axis(axis)
             return [t for t in L.tick_values(lo, hi) if lo <= t <= hi]
         maj = locs((1., 2., 5.), 10)
@@ -56,15 +55,9 @@ def loglabels(ax, which="both"):
         axis.set_major_formatter(mticker.FuncFormatter(fmt))
 
 
-rd = ROOT / "results" / RUN
-cfg = load_config(rd / "config.yaml")
-theta = float(json.load(open(rd / "summary.json"))["threshold_calibration"]["selected_threshold"])
-model = build_model(cfg.model)
-ck = torch.load(rd / "checkpoints" / "best.pt", map_location="cpu", weights_only=True)
-model.load_state_dict(ck["model"] if "model" in ck else ck["state_dict"]); model.eval()
-norm = TargetNormalizer.from_config(cfg.data)
-ds = VoxelDataset(cfg.data.test_path, cfg.data, norm)
-q = detr_query_outputs(model, ds, torch.device("cpu"), norm)
+loaded = load_run(ROOT / "results" / RUN)
+cfg, theta = loaded.cfg, loaded.fitted_threshold
+q, _ = loaded.predict("test")
 P = np.asarray(q["params"]); E = np.asarray(q["exist_prob"])
 N, Q, _ = P.shape
 rate = np.array([(E[:, j] >= theta).mean() for j in range(Q)])

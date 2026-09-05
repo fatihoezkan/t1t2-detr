@@ -27,11 +27,13 @@ RULER = {"strict@.50": 1.95, "strict@.75": 0.98, "mAP@7 2D": 0.0168,
 
 
 def _sweep(r, dim, th, key):
+    """Get a saved metric at the requested threshold and dimension."""
     d = json.load(open(RES / "threshold_sweep" / f"{r}.json"))[dim]
     return next(x for x in d if abs(x["threshold"] - th) < 1e-9)[key]
 
 
 def _perk(r, k):
+    """Get strict accuracy for one compartment count at threshold 0.75."""
     d = json.load(open(RES / "threshold_sweep" / f"{r}.json"))["2d_by_k"]["0.75"]
     if "strict" in d:
         return d["strict"][k]
@@ -39,12 +41,14 @@ def _perk(r, k):
 
 
 def _map(r):
+    """Read 2D average precision and its 3D counterpart when available."""
     m2 = json.load(open(RES / "nd_evaluation" / f"{r}.json"))["map"]["map@7"]
     t = json.load(open(RES / "nd_evaluation" / "tables_2d_3d.json"))
     return m2, (t[r]["3d"]["map"]["map@7"] if r in t else None)
 
 
 def metrics(r):
+    """Collect the scores used to judge the final model."""
     m2, m3 = _map(r)
     return {"strict@.50": _sweep(r, "2d", 0.50, "voxel_acc"),
             "strict@.75": _sweep(r, "2d", 0.75, "voxel_acc"),
@@ -56,6 +60,7 @@ ORDER = ["strict@.50", "strict@.75", "K=3 strict", "count@.75", "mAP@7 2D", "mAP
 
 
 def group(runs, label):
+    """Report each metric's mean and range across a group of runs."""
     vals = {}
     for k in ORDER:
         xs = [metrics(r)[k] for r in runs]
@@ -70,6 +75,7 @@ def group(runs, label):
 
 
 def main(dry=False):
+    """Compare the final model against the predefined success criteria."""
     a = group(REF, "reference")
     bruns = REF if dry else FINAL
     missing = [r for r in bruns if not (RES / r).exists()]

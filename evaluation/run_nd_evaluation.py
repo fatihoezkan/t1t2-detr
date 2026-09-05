@@ -14,45 +14,27 @@ import sys
 from pathlib import Path
 
 import numpy as np
-import torch
 
-from t1t2.config import load_config
-from t1t2.data import TargetNormalizer, VoxelDataset
-from t1t2.eval import detr_query_outputs, true_compartments
-from t1t2.model import build_model
 from t1t2.nd_metrics import (
-    TAUS_DEFAULT, TAU_BASE, log_spans, dataset_records, map_101_from_records,
+    TAUS_DEFAULT, TAU_BASE, dataset_records, map_101_from_records,
     exact_metrics_from_records, calibrate_threshold_nd, stratified_map,
     bootstrap_map_ci,
 )
+from t1t2.runs import load_run
 
 
 def evaluate_run(run_dir, out_dir, device="cpu", limit=None, n_boot=300, log=print):
+    """Evaluate a saved model with normalized-distance matching and save results."""
     run_dir = Path(run_dir)
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    cfg = load_config(run_dir / "config.yaml")
-    name = cfg.name
-
-    model = build_model(cfg.model)
-    ckpt = torch.load(run_dir / "checkpoints" / "best.pt", map_location="cpu",
-                      weights_only=True)
-    model.load_state_dict(ckpt["model"] if "model" in ckpt else ckpt["state_dict"])
-    model.to(device).eval()
-
-    normalizer = TargetNormalizer.from_config(cfg.data)
-    spans = log_spans(cfg.data.t1_min, cfg.data.t1_max, cfg.data.t2_min, cfg.data.t2_max)
-
-    def _split(paths):
-        ds = VoxelDataset(paths, cfg.data, normalizer, limit=limit)
-        q = detr_query_outputs(model, ds, torch.device(device), normalizer)
-        t = true_compartments(ds)
-        return q, t
+    run = load_run(run_dir, device)
+    cfg, spans, name = run.cfg, run.spans, run.cfg.name
 
     log(f"[{name}] inference on val ...")
-    q_val, t_val = _split(cfg.data.val_path)
+    q_val, t_val = run.predict("val", limit=limit)
     log(f"[{name}] inference on test ...")
-    q_test, t_test = _split(cfg.data.test_path)
+    q_test, t_test = run.predict("test", limit=limit)
 
     # -- threshold calibrated on VAL only ------------------------------------------
     best_t, calib_table = calibrate_threshold_nd(q_val, t_val, spans, tau=TAU_BASE)
@@ -88,7 +70,7 @@ def evaluate_run(run_dir, out_dir, device="cpu", limit=None, n_boot=300, log=pri
     result = {
         "name": name,
         "run_dir": str(run_dir),
-        "epoch": int(ckpt.get("epoch", -1)) + 1,
+        "epoch": run.epoch,
         "spans_log": {"t1": spans[0], "t2": spans[1]},
         "ranges_ms": {"t1": [cfg.data.t1_min, cfg.data.t1_max],
                       "t2": [cfg.data.t2_min, cfg.data.t2_max]},

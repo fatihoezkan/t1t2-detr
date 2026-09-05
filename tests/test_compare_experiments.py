@@ -52,6 +52,7 @@ def _minimal_config(name: str, data_family: str = "t1_3500_t2_500_100k", **overr
 
 
 def _minimal_summary(name: str, count_accuracy=0.80, t1_rel=0.050) -> dict:
+    """Build a small experiment summary for comparison tests."""
     return {
         "name": name,
         "epochs_run": 160, "epoch_budget": 500, "best_epoch": 120,
@@ -88,6 +89,7 @@ def _minimal_summary(name: str, count_accuracy=0.80, t1_rel=0.050) -> dict:
 
 
 def _write_run(results_dir: Path, name: str, config: dict, summary: dict) -> Path:
+    """Save a test run's configuration and summary."""
     d = results_dir / name
     d.mkdir(parents=True)
     (d / "config.yaml").write_text(yaml.safe_dump(config, sort_keys=False))
@@ -167,6 +169,7 @@ def test_baseline_is_forced_into_the_comparison(fake_results, tmp_path):
 
 # ------------------------------------------------------------------------- the verdict logic
 def test_single_change_arm_is_interpretable(fake_results, tmp_path):
+    """Check that a single config change is reported as interpretable."""
     out = tmp_path / "out"
     ce.main(["loss_uniform", "--quiet",
              "--results-dir", str(fake_results), "--out-dir", str(out)])
@@ -210,6 +213,7 @@ def test_different_dataset_arm_is_labelled(fake_results, tmp_path):
 
 
 def test_identical_config_is_the_control(fake_results, tmp_path):
+    """Check that an unchanged config is labeled as a control."""
     out = tmp_path / "out"
     ce.main(["baseline_rerun", "--quiet",
              "--results-dir", str(fake_results), "--out-dir", str(out)])
@@ -325,6 +329,7 @@ def test_discover_runs_ignores_nested_historical_runs(fake_results):
 
 
 def test_footer_states_the_single_seed_limitation(fake_results, tmp_path):
+    """Check that the report explains the limits of using one seed."""
     out = tmp_path / "out"
     ce.main(["--all", "--quiet",
              "--results-dir", str(fake_results), "--out-dir", str(out)])

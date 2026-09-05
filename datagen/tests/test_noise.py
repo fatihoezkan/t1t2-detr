@@ -8,16 +8,19 @@ from voxel_simulator.noise import (
 
 
 def _clean():
+    """Create a simple noise-free signal for tests."""
     return np.linspace(0.1, 1.0, 64)
 
 
 def test_shape_and_finite():
+    """Check that adding noise preserves signal size and finite values."""
     noisy, sigma = add_noise(_clean(), snr=50, rng=np.random.default_rng(0))
     assert noisy.shape == (64,)
     assert np.all(np.isfinite(noisy)) and sigma > 0
 
 
 def test_reproducible():
+    """Check that the same random seed produces identical noise."""
     a, _ = add_noise(_clean(), 40, np.random.default_rng(7))
     b, _ = add_noise(_clean(), 40, np.random.default_rng(7))
     np.testing.assert_array_equal(a, b)

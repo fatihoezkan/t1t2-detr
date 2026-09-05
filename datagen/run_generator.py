@@ -34,6 +34,7 @@ from voxel_simulator.sampler import (  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
+    """Read dataset generation options from the command line."""
     ap = argparse.ArgumentParser(description="Generate the synthetic T1-T2 voxel dataset family.")
     ap.add_argument("--out-dir", default=str(PROJECT_ROOT / "output" / "data"),
                     help="Directory for the parquet files.")
@@ -83,6 +84,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """Generate the requested datasets, using tiny sizes for smoke runs."""
     a = parse_args()
     config = DatasetFamilyConfig(
         out_dir=a.out_dir,

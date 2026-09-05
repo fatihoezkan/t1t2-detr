@@ -228,6 +228,7 @@ def stratified_map(query_outputs, trues, spans, tau=TAU_BASE, weight_bins=(0.3, 
     recs, n_gt = dataset_records(query_outputs, trues, spans, tau, exist_thresh=0.0)
 
     def _subset_map(gt_mask_fn):
+        """Measure average precision for a chosen group of true compartments."""
         conf, keys = [], []
         total_gt = 0
         for v, t in enumerate(trues):

@@ -18,64 +18,52 @@ import pandas as pd
 import torch
 from torch.utils.data import DataLoader, Dataset
 
-_NORM_MODES = ("identity", "linear_minmax", "log_minmax")
-
-
 class TargetNormalizer:
-    """Maps T1 and T2 between milliseconds and the model's [0, 1] range.
+    """Maps T1 and T2 between milliseconds and the model's [0, 1] range, log-min-max.
 
-    Log spacing is the default. Relaxation times span roughly 20 ms to a few thousand ms,
-    so a linear map squeezes the short-T2 pools into the first few percent of the range.
-    The log map spreads them evenly, matches the generator's log-uniform sampling, and puts
-    the T1 and T2 loss terms on the same footing.
+    Relaxation times span roughly 20 ms to a few thousand ms, so a linear map would squeeze
+    the short-T2 pools into the first few percent of the range. The log map spreads them
+    evenly, matches the generator's log-uniform sampling, and puts the T1 and T2 loss terms
+    on the same footing.
     """
 
-    def __init__(self, mode="log_minmax", t1_min=100.0, t1_max=7000.0, t2_min=5.0, t2_max=4000.0):
-        if mode not in _NORM_MODES:
-            raise ValueError(f"unknown normalization {mode!r}; expected one of {_NORM_MODES}")
-        self.mode = mode
+    def __init__(self, t1_min=100.0, t1_max=7000.0, t2_min=5.0, t2_max=4000.0):
+        """Set the millisecond bounds that map onto 0 and 1."""
         self.t1_min, self.t1_max = float(t1_min), float(t1_max)
         self.t2_min, self.t2_max = float(t2_min), float(t2_max)
 
     @classmethod
     def from_config(cls, data_cfg) -> "TargetNormalizer":
-        return cls(data_cfg.normalization, data_cfg.t1_min, data_cfg.t1_max,
-                   data_cfg.t2_min, data_cfg.t2_max)
+        """Build a normalizer from the data settings."""
+        return cls(data_cfg.t1_min, data_cfg.t1_max, data_cfg.t2_min, data_cfg.t2_max)
 
     def _fwd(self, x, lo, hi, clip):
         """Milliseconds to [0, 1]."""
         x = np.asarray(x, dtype=np.float64)
-        if self.mode == "identity":
-            out = x
-        elif self.mode == "linear_minmax":
-            out = (x - lo) / (hi - lo)
-        else:  # log_minmax
-            out = (np.log(x) - np.log(lo)) / (np.log(hi) - np.log(lo))
+        out = (np.log(x) - np.log(lo)) / (np.log(hi) - np.log(lo))
         # Targets are clamped: a target outside [0, 1] is one the sigmoid can never reach.
         # Predictions are never clamped here, that would distort them before inversion.
-        if clip and self.mode != "identity":
-            out = np.clip(out, 0.0, 1.0)
-        return out
+        return np.clip(out, 0.0, 1.0) if clip else out
 
     def _inv(self, y, lo, hi):
         """[0, 1] back to milliseconds, the exact inverse of _fwd."""
         y = np.asarray(y, dtype=np.float64)
-        if self.mode == "identity":
-            return y
-        if self.mode == "linear_minmax":
-            return y * (hi - lo) + lo
         return np.exp(y * (np.log(hi) - np.log(lo)) + np.log(lo))
 
     def normalize_t1(self, t1, clip=True):
+        """Scale T1 values into the model's target range."""
         return self._fwd(t1, self.t1_min, self.t1_max, clip)
 
     def normalize_t2(self, t2, clip=True):
+        """Scale T2 values into the model's target range."""
         return self._fwd(t2, self.t2_min, self.t2_max, clip)
 
     def denormalize_t1(self, x):
+        """Convert scaled T1 values back to milliseconds."""
         return self._inv(x, self.t1_min, self.t1_max)
 
     def denormalize_t2(self, x):
+        """Convert scaled T2 values back to milliseconds."""
         return self._inv(x, self.t2_min, self.t2_max)
 
 
@@ -85,24 +73,16 @@ def _signal_columns(n_inputs: int) -> list[str]:
     return [f"S_{i + 1}" for i in range(n_inputs)]
 
 
-def _apply_signal_norm(X: np.ndarray, mode: str) -> np.ndarray:
-    """Per-voxel rescaling of the input signal.
+def _normalize_signal(X: np.ndarray) -> np.ndarray:
+    """Divide each voxel's signal by its peak magnitude.
 
     Real scans arrive at an arbitrary scale (receiver gain, coil sensitivity), so the same
-    transform has to be applied to synthetic and real data. "max" divides each voxel by its
-    peak magnitude, "first" by its first sample, "none" leaves it alone.
+    transform has to be applied to synthetic and real data; dividing by the peak also removes
+    M0. An all-zero signal is left as it is.
     """
-    if mode == "none":
-        return X
-    if mode == "max":
-        m = np.max(np.abs(X), axis=1, keepdims=True)
-        m[m == 0] = 1.0
-        return (X / m).astype(np.float32)
-    if mode == "first":
-        f = X[:, :1].copy()
-        f[f == 0] = 1.0
-        return (X / f).astype(np.float32)
-    raise ValueError(f"unknown signal_norm {mode!r}; expected none|max|first")
+    m = np.max(np.abs(X), axis=1, keepdims=True)
+    m[m == 0] = 1.0
+    return (X / m).astype(np.float32)
 
 
 def infer_max_comp(df: pd.DataFrame) -> int:
@@ -171,6 +151,7 @@ class VoxelDataset(Dataset):
     """
 
     def __init__(self, path, cfg, normalizer: TargetNormalizer | None = None, limit: int | None = None):
+        """Load voxel signals and prepare their training targets."""
         self.cfg = cfg
         self.normalizer = normalizer or TargetNormalizer.from_config(cfg)
         n_in = cfg.n_inputs
@@ -188,7 +169,7 @@ class VoxelDataset(Dataset):
         # copy=True: pandas may hand back a read-only view, and torch.from_numpy on a
         # non-writable buffer is undefined behaviour once anything writes to it.
         X = df[_signal_columns(n_in)].to_numpy(np.float32, copy=True)
-        X = _apply_signal_norm(X, cfg.signal_norm)
+        X = _normalize_signal(X)
 
         n_comp = df["n_comp"].to_numpy(np.int64)
         t1 = np.stack([df[f"T1_{i + 1}"].to_numpy(np.float64) for i in range(max_c)], axis=1)
@@ -209,9 +190,11 @@ class VoxelDataset(Dataset):
         self.n_comp = torch.from_numpy(n_comp.astype(np.int16))
 
     def __len__(self) -> int:
+        """Return the number of voxels in the dataset."""
         return self.X.shape[0]
 
     def __getitem__(self, i):
+        """Get one voxel's signal, targets, and compartment count."""
         return self.X[i], self.y[i], self.n_comp[i]
 
 

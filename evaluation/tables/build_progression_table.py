@@ -51,22 +51,27 @@ GROUPS = [
 
 
 def acc(r):
+    """Read test accuracy at the threshold chosen on validation data."""
     return json.load(open(VAL / f"{r}.json"))["test_voxel_acc_at_val_theta"]
 
 
 def theta(r):
+    """Read the confidence threshold chosen on validation data."""
     return json.load(open(VAL / f"{r}.json"))["val_theta"]
 
 
 def map7(r):
+    """Read average precision at 7% matching tolerance."""
     return json.load(open(RES / "nd_evaluation" / f"{r}.json"))["map"]["map@7"]
 
 
 def have(runs):
+    """Keep runs that have saved validation-threshold results."""
     return [r for r in runs if (VAL / f"{r}.json").exists()]
 
 
 def main():
+    """Write the model progression table with changes from the reference."""
     ref = have(GROUPS[0][1][0][2])
     ra = [acc(r) for r in ref]
     base, ruler = statistics.mean(ra), max(ra) - min(ra)

@@ -21,6 +21,7 @@ MAX_COMP = 4        # what the dev data carries; the loader reads it off the col
 
 
 def _cfg() -> ExperimentConfig:
+    """Create default experiment settings for quick pipeline checks."""
     return ExperimentConfig(
         name="smoke",
         data=DataConfig(train_path=DEV_TRAIN),
@@ -31,6 +32,7 @@ def _cfg() -> ExperimentConfig:
 
 
 def test_config_roundtrip(tmp_path):
+    """Check that saving and reloading a config preserves key settings."""
     cfg = load_config(ROOT / "configs" / "physics_noisy.yaml")
     assert cfg.data.n_inputs == 64 and cfg.model.n_queries == 10
     assert cfg.loss.signal_consistency is True
@@ -44,14 +46,16 @@ def test_config_roundtrip(tmp_path):
 
 
 def test_normalizer_roundtrip():
+    """Check that scaling T1 values and converting back recovers them."""
     import numpy as np
-    nz = TargetNormalizer(mode="log_minmax")
+    nz = TargetNormalizer()
     x = np.array([50.0, 800.0, 3000.0])
     back = nz.denormalize_t1(nz.normalize_t1(x, clip=False))
     assert np.allclose(back, x, rtol=1e-9)
 
 
 def test_dataset_shapes():
+    """Check signal sizes, target sizes, and normalized target ranges."""
     cfg = _cfg()
     ds = VoxelDataset(cfg.data.train_path, cfg.data, limit=128)
     assert ds.max_comp == MAX_COMP                  # inferred from the columns, not configured
@@ -64,6 +68,7 @@ def test_dataset_shapes():
 
 
 def test_forward_and_loss_shapes():
+    """Check prediction shapes, finite loss, and usable gradients."""
     cfg = _cfg()
     loader, _ = make_dataloader(cfg.data.train_path, cfg.data, batch_size=16, shuffle=False, limit=64)
     model = build_model(cfg.model)
@@ -80,6 +85,7 @@ def test_forward_and_loss_shapes():
 
 
 def test_aux_loss_path():
+    """Check that auxiliary outputs include every decoder layer."""
     cfg = _cfg()
     cfg.model.aux_loss = True
     model = build_model(cfg.model)
@@ -100,6 +106,7 @@ def test_max_comp_is_not_configurable():
 
 
 def test_infer_max_comp_reads_the_columns():
+    """Check that compartment capacity comes from the dataset columns."""
     import pandas as pd
 
     from t1t2.data import infer_max_comp
@@ -110,6 +117,7 @@ def test_infer_max_comp_reads_the_columns():
 
 
 def _toy_frame(k, n_comp=1, skip=None):
+    """Build a tiny dataset table with optional missing compartment columns."""
     import pandas as pd
     d = {"n_comp": [n_comp]} | {f"S_{i+1}": [0.1] for i in range(64)}
     for i in range(1, k + 1):
@@ -120,6 +128,7 @@ def _toy_frame(k, n_comp=1, skip=None):
 
 
 def test_infer_max_comp_rejects_malformed_schemas():
+    """Check that missing or inconsistent compartment columns are rejected."""
     import pytest
 
     from t1t2.data import infer_max_comp
@@ -156,8 +165,8 @@ def test_multi_path_limit_splits_evenly_across_counts():
 
 
 def test_signal_norm_max_puts_every_peak_at_one():
+    """Check that peak normalization gives each signal a unit peak."""
     cfg = _cfg()
-    cfg.data.signal_norm = "max"
     ds = VoxelDataset(cfg.data.train_path, cfg.data, limit=64)
     peaks = ds.X.abs().max(dim=1).values
     assert torch.allclose(peaks, torch.ones_like(peaks), atol=1e-5)

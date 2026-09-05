@@ -14,12 +14,10 @@ data:
   - data/t1_3500_t2_500_100k/n3/test.parquet
   n_inputs: 64
   train_limit_per_path: null
-  normalization: log_minmax
   t1_min: 50.0
   t1_max: 3500.0
   t2_min: 5.0
   t2_max: 500.0
-  signal_norm: max
 model:
   input_dim: 64
   hidden_dim: 512
@@ -29,8 +27,6 @@ model:
   n_heads: 4
   aux_loss: false
   exist_head: joint
-  pretrain_path: null
-  freeze_encoder: false
 loss:
   t1_weight: 1.0
   t2_weight: 1.0
@@ -40,7 +36,6 @@ loss:
   t1_t2_weighting: signal_fraction
   signal_consistency: false
   signal_consistency_weight: 0.0
-  signal_consistency_type: mse
 train:
   epochs: 500
   batch_size: 512
@@ -52,7 +47,6 @@ train:
   early_stopping: true
   early_stopping_patience: 35
   early_stopping_min_delta: 1.0e-05
-  selection_metric: parameter_loss
   lr_scheduler: reduce_on_plateau
   scheduler_factor: 0.5
   scheduler_patience: 7
@@ -61,11 +55,9 @@ train:
   device: null
   seed: 20260726
   num_workers: 4
-  ckpt_every: 1
 evaluation:
   calibrate_threshold: true
   fixed_threshold: 0.5
-  threshold_objective: parameter_set_error
   threshold_min: 0.05
   threshold_max: 0.95
   threshold_steps: 91

@@ -28,11 +28,13 @@ FAMILIES = [
 
 
 def _sweep(r, dim, th, key):
+    """Get a saved metric at the requested threshold and dimension."""
     d = json.load(open(RES / "threshold_sweep" / f"{r}.json"))[dim]
     return next(x for x in d if abs(x["threshold"] - th) < 1e-9)[key]
 
 
 def _perk(r, k):
+    """Get strict accuracy for one compartment count at threshold 0.75."""
     d = json.load(open(RES / "threshold_sweep" / f"{r}.json"))["2d_by_k"]["0.75"]
     if "strict" in d:
         return d["strict"][k]
@@ -40,6 +42,7 @@ def _perk(r, k):
 
 
 def metrics(r):
+    """Collect the scores used to compare the final model families."""
     m2 = json.load(open(RES / "nd_evaluation" / f"{r}.json"))["map"]["map@7"]
     return [_sweep(r, "2d", 0.50, "voxel_acc"), _sweep(r, "2d", 0.75, "voxel_acc"),
             _perk(r, "3"), _sweep(r, "2d", 0.75, "count_acc"), m2]
@@ -49,6 +52,7 @@ DIGITS = [2, 2, 2, 2, 4]
 
 
 def main():
+    """Write the final-model table with means and ranges across seeds."""
     rows = []
     for label, recipe, runs in FAMILIES:
         have = [r for r in runs if (RES / "threshold_sweep" / f"{r}.json").exists()]

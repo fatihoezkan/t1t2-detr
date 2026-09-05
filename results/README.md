@@ -66,7 +66,7 @@ model.eval()
 
 `best.pt` holds `model` (the state dict), `epoch`, `val` (the selection value), `val_loss`,
 `parameter_loss` and `selection_metric`. The model expects a batch of 64-point signals
-normalised by their own peak magnitude (`signal_norm: max`) and returns `(batch, queries, 4)`:
+normalised by their own peak magnitude and returns `(batch, queries, 4)`:
 T1 and T2 in the normalised [0, 1] space of `t1t2.data.TargetNormalizer`, the signal fraction,
 and the existence logit. `t1t2.eval.detr_query_outputs` does the conversion back to
 milliseconds.

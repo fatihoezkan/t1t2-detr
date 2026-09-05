@@ -42,10 +42,12 @@ CELLS: list = []
 
 
 def md(text: str) -> None:
+    """Append a Markdown cell to the thesis notebook."""
     CELLS.append(nbf.v4.new_markdown_cell(text.strip("\n")))
 
 
 def code(src: str) -> None:
+    """Append a code cell to the thesis notebook."""
     CELLS.append(nbf.v4.new_code_cell(src.strip("\n")))
 
 
@@ -140,6 +142,7 @@ def linear_log_ticks(ax, which="both"):
     labels the minor ticks in scientific notation.
     """
     def fmt(v, _):
+        """Shorten large tick values using k for thousands."""
         if v >= 1000:
             return f"{v/1000:.1f}".rstrip("0").rstrip(".") + "k"
         return f"{v:g}"
@@ -150,6 +153,7 @@ def linear_log_ticks(ax, which="both"):
         pairs.append((ax.yaxis, ax.get_ylim()))
     for axis, (lo, hi) in pairs:
         def locs_for(subs, n):
+            """Find log-scale ticks within the visible axis limits."""
             L = mticker.LogLocator(subs=subs, numticks=n)
             L.set_axis(axis)
             return [t for t in L.tick_values(lo, hi) if lo <= t <= hi]
@@ -279,6 +283,7 @@ L_REF, L_ARM = LABEL[REF_ARM], LABEL[ARM]  # use these in titles, never the raw 
 # Both arms must point at the same test files, otherwise voxel i is a different
 # voxel in the two rows of the paired panels.
 def _test_paths(arm):
+    """Read the test dataset paths for an experiment."""
     p = Path(f"configs/{arm}.yaml")
     if not p.exists():
         p = Path(f"results/{arm}/config.yaml")
@@ -470,6 +475,7 @@ cb.ax.tick_params(labelsize=TINY)
 # Depletion factor: density in the band named in the title relative to a log-uniform
 # draw. Measured here, not hardcoded, so the title and the text cannot disagree.
 def _depletion(v, lim, band):
+    """Compare observed band coverage with a log-uniform reference."""
     span = np.log(lim[1]) - np.log(lim[0])
     share = (np.log(band[1]) - np.log(band[0])) / span
     return ((v >= band[0]) & (v < band[1])).mean() / share
@@ -704,6 +710,7 @@ from t1t2.eval import detr_query_outputs, true_compartments
 
 
 def _cfg(arm):
+    """Load an experiment's settings from configs or saved results."""
     p = Path(f"configs/{arm}.yaml")
     return load_config(p if p.exists() else Path(f"results/{arm}/config.yaml"))
 
@@ -1096,6 +1103,7 @@ print(f"voxels where they tie              : {(delta == 0).sum():,}")
 # Deterministic pick: among multi-compartment voxels, the largest disagreement, then the
 # smallest true weight (the hardest instance of that disagreement) breaks ties.
 def pick_disagreements(sign, n=3, min_K=2):
+    """Pick voxels where the models disagree most in the chosen direction."""
     cand = np.where((np.sign(delta) == sign) & (K_true >= min_K))[0]
     if len(cand) == 0:
         return []
@@ -1230,10 +1238,12 @@ GALLERY_XLIM, GALLERY_YLIM = (45, 3900), (4.5, 620)
 # (voxels 0..23 are all single-compartment). The gallery takes 8 voxels per K instead,
 # so each row is one compartment count.
 def gallery_voxels(per_k=8):
+    """Pick example voxels for each true compartment count."""
     return [int(np.where(K_true == K)[0][j]) for K in (1, 2, 3) for j in range(per_k)]
 
 
 def gallery(arm, voxels=None, ncol=8, name=None):
+    """Plot example voxels with their true and predicted compartments."""
     voxels = voxels or gallery_voxels(ncol)
     nrow = int(np.ceil(len(voxels) / ncol))
     fig, axes = plt.subplots(nrow, ncol, figsize=(1.55 * ncol, 1.66 * nrow),
@@ -1299,6 +1309,7 @@ an observation about three voxels, not about a model.
 
 code(r'''
 def aggregate(arm):
+    """Calculate strict matching metrics and average precision for a model."""
     q = Q[arm]
     recs, n_gt = ndm.dataset_records(q, TRUES, SPANS, TAU, exist_thresh=q["thresh"])
     m = ndm.exact_metrics_from_records(recs, n_gt)
@@ -1317,6 +1328,7 @@ KEYS = ("mAP@7", "precision", "recall", "f1", "TP", "FP", "FN",
 
 
 def stored_ref(arm):
+    """Read saved evaluation scores for comparison with recomputed results."""
     s = json.load(open(f"results/nd_evaluation/{arm}.json"))
     ref = dict(s["exact_at_threshold"])
     ref["mAP@7"] = s["map"]["map@7"]
@@ -1499,6 +1511,7 @@ HAVE_CKPT = (RES / ARM / "checkpoints" / "best.pt").exists()
 
 
 def jload(p, default=None):
+    """Read a JSON file, using a default if it is missing."""
     p = Path(p)
     return json.load(open(p)) if p.exists() else default
 
@@ -1548,10 +1561,12 @@ ND = pd.read_csv(RES / "nd_evaluation" / "nd_metrics_all_models.csv").set_index(
 
 
 def theta_cal(run):
+    """Read the confidence threshold chosen on validation data."""
     return float(jload(RES / "threshold_val" / f"{run}.json")["val_theta"])
 
 
 def strict_cal(run):
+    """Read strict test accuracy at the validation-chosen threshold."""
     return float(jload(RES / "threshold_val" / f"{run}.json")["test_voxel_acc_at_val_theta"])
 
 
@@ -1562,26 +1577,32 @@ def sweep_at(run, theta, key):
 
 
 def count_cal(run):
+    """Get count accuracy at the validation-chosen threshold."""
     return sweep_at(run, theta_cal(run), "count_acc")
 
 
 def map7(run):
+    """Read average precision at 7% matching tolerance."""
     return float(ND.loc[run, "mAP@7"])
 
 
 def metrics(run):
+    """Read a run's saved evaluation metrics."""
     return jload(RES / run / "metrics_detr.json")
 
 
 def summary(run):
+    """Read a run's saved experiment summary."""
     return jload(RES / run / "summary.json")
 
 
 def recovery_bins(run):
+    """Read recovery results grouped by true signal fraction."""
     return jload(RES / run / "parameter_recovery_detr.json")["bins"]
 
 
 def mean_range(vals):
+    """Return the average and the gap between largest and smallest values."""
     vals = np.asarray(vals, float)
     return float(vals.mean()), float(vals.max() - vals.min())
 
@@ -1752,6 +1773,7 @@ placed much better, but not found more often.
 
 code(r'''
 def family_row(name, runs):
+    """Summarize a model family's results in one table row."""
     out = {"model": name}
     for label, fn, dec in (("strict acc (%)", strict_cal, 2), ("count acc (%)", count_cal, 2),
                            ("mAP@7", map7, 4)):
@@ -1824,6 +1846,7 @@ rows.append({"model": "final_uniform_q6", "what changed": CHANGE["final_uniform_
 display(pd.DataFrame(rows).set_index("model"))
 
 def crit(model, label, value, op, limit, dec):
+    """Turn a measured value and its acceptance limit into a verdict."""
     ok = value >= limit if op == ">=" else value <= limit
     return {"model": model, "criterion": f"{label} {op} {limit}", "measured": f"{value:.{dec}f}",
             "verdict": "pass" if ok else "fail"}
@@ -2017,12 +2040,14 @@ both points; the README lists the limitations.
 # =====================================================================================
 
 def _png_b64(fig) -> str:
+    """Encode a figure as PNG text for embedding in the notebook."""
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=110, bbox_inches="tight")
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
 def execute_and_inject(cells: list) -> tuple[int, list[str]]:
+    """Run notebook cells and attach their text, figures, and errors."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -2030,6 +2055,7 @@ def execute_and_inject(cells: list) -> tuple[int, list[str]]:
     captured: list = []
 
     def _display(obj):
+        """Capture a displayed object as a notebook output."""
         if isinstance(obj, _PILImage.Image):
             buf = io.BytesIO()
             obj.save(buf, format="PNG", optimize=True)
@@ -2053,6 +2079,7 @@ def execute_and_inject(cells: list) -> tuple[int, list[str]]:
                                       "text/plain": f"<{type(obj).__name__}>"}, metadata={}))
 
     def _show(*a, **k):
+        """Capture open figures as notebook images and close them."""
         for num in plt.get_fignums():
             fig = plt.figure(num)
             captured.append(nbf.v4.new_output(

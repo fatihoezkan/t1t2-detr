@@ -8,6 +8,7 @@ from voxel_simulator.protocol import Protocol, load_protocol
 
 
 def test_protocol_load():
+    """Check that the protocol has the expected timings and measurement count."""
     proto = load_protocol()
     assert proto.n_points == 64
     assert len(np.unique(proto.ti)) == 8
@@ -45,6 +46,7 @@ def test_linearity_multi_compartment():
 
 
 def test_signal_finite_and_shape():
+    """Check that simulation produces 64 finite signal values."""
     proto = load_protocol()
     s = simulate_clean_signal(proto, np.array([1000.0]), np.array([80.0]), np.array([1.0]))
     assert s.shape == (64,)
@@ -52,6 +54,7 @@ def test_signal_finite_and_shape():
 
 
 def test_invalid_inputs_rejected():
+    """Check that invalid relaxation times and weights are rejected."""
     proto = load_protocol()
     with pytest.raises(ValueError):
         simulate_clean_signal(proto, np.array([-1.0]), np.array([80.0]), np.array([1.0]))

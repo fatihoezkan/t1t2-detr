@@ -24,10 +24,12 @@ DEV = ROOT / "data" / "dev"
 
 
 def _split(name: str) -> list[str]:
+    """List development-data files for the requested split."""
     return [str(DEV / f"n{n}" / f"{name}.parquet") for n in range(1, 5)]
 
 
 def _cfg(**train_kw) -> ExperimentConfig:
+    """Create pipeline test settings with optional training overrides."""
     train_kw.setdefault("early_stopping", False)     # most tests want a fixed epoch count
     return ExperimentConfig(
         name="pipe",
@@ -57,6 +59,7 @@ def test_physics_parity_with_generator():
 
 
 def test_forward_torch_matches_numpy():
+    """Check that Torch and NumPy simulate the same signal."""
     proto = load_protocol()
     t1, t2, w = [1200.0, 300.0], [80.0, 40.0], [0.7, 0.3]
     ours = forward_numpy(proto, t1, t2, w)
@@ -66,7 +69,8 @@ def test_forward_torch_matches_numpy():
 
 
 def test_train_smoke_and_resume(tmp_path):
-    cfg = _cfg(epochs=2, batch_size=128, ckpt_every=1)
+    """Check that a short training run resumes without losing history."""
+    cfg = _cfg(epochs=2, batch_size=128)
     hist, rd, model = train(cfg, results_dir=tmp_path / "run", limit=256, log=lambda *a: None)
     assert len(hist) == 2
     assert np.isfinite(hist[-1]["train"]["loss"])
@@ -83,7 +87,7 @@ def test_early_stopping_fires_and_returns_the_best_model(tmp_path):
     Evaluating the final epoch silently reports the wrong model whenever the last epoch is not
     the best.
     """
-    cfg = _cfg(epochs=20, batch_size=128, ckpt_every=1,
+    cfg = _cfg(epochs=20, batch_size=128,
                early_stopping=True, early_stopping_patience=2,
                early_stopping_min_delta=10.0)      # nothing counts as an improvement
     hist, rd, model = train(cfg, results_dir=tmp_path / "run", limit=256, resume=False,
@@ -126,10 +130,10 @@ def test_resume_refuses_a_different_config(tmp_path):
     """Checkpoints are keyed only by directory, so a changed config would blend two experiments."""
     import pytest
 
-    cfg = _cfg(epochs=1, batch_size=128, ckpt_every=1)
+    cfg = _cfg(epochs=1, batch_size=128)
     train(cfg, results_dir=tmp_path / "run", limit=128, log=lambda *a: None)
 
-    changed = _cfg(epochs=1, batch_size=128, ckpt_every=1)
+    changed = _cfg(epochs=1, batch_size=128)
     changed.model.n_queries = 12
     with pytest.raises(ValueError, match="different config"):
         train(changed, results_dir=tmp_path / "run", limit=128, log=lambda *a: None)
@@ -137,7 +141,7 @@ def test_resume_refuses_a_different_config(tmp_path):
 
 def test_checkpoint_metadata_is_plain_python(tmp_path):
     """torch>=2.6 loads with weights_only=True; a numpy scalar here breaks resume on the cluster."""
-    cfg = _cfg(epochs=1, batch_size=128, ckpt_every=1)
+    cfg = _cfg(epochs=1, batch_size=128)
     train(cfg, results_dir=tmp_path / "run", limit=128, log=lambda *a: None)
     state = torch.load(tmp_path / "run" / "checkpoints" / "last.pt", map_location="cpu",
                        weights_only=True)
@@ -160,6 +164,7 @@ def test_train_limit_per_path_leaves_val_alone(tmp_path):
 
 
 def test_eval_produces_metrics(tmp_path):
+    """Check that evaluation saves the expected metrics and figures."""
     cfg = _cfg(epochs=1, batch_size=128)
     _, rd, model = train(cfg, results_dir=tmp_path / "run", limit=256, log=lambda *a: None)
     ds = VoxelDataset(cfg.data.test_path, cfg.data, limit=256)
@@ -217,6 +222,7 @@ def test_physics_violations_are_measured_not_fixed():
 
 
 def test_snr_ladder_is_scored_per_rung_and_flags_extrapolation(tmp_path):
+    """Check that noise levels are scored separately and extrapolation is flagged."""
     from t1t2.eval import evaluate_snr_ladder
 
     cfg = _cfg(epochs=1, batch_size=128)

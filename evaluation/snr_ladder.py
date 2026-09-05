@@ -16,7 +16,6 @@ from pathlib import Path
 
 import matplotlib
 import numpy as np
-import torch
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
@@ -26,10 +25,8 @@ sys.path.insert(0, str(HERE.parent))
 sys.path.insert(0, str(HERE))
 
 from t1t2 import nd_metrics as ndm  # noqa: E402
-from t1t2.config import load_config  # noqa: E402
-from t1t2.data import TargetNormalizer, VoxelDataset  # noqa: E402
-from t1t2.eval import _match, detr_query_outputs, true_compartments  # noqa: E402
-from t1t2.model import build_model  # noqa: E402
+from t1t2.eval import _match  # noqa: E402
+from t1t2.runs import load_run  # noqa: E402
 from threshold_sweep import score, score_by_k  # noqa: E402
 
 TAU = 0.07
@@ -54,22 +51,6 @@ QUANTITIES = [
 ]
 
 
-def load_run(results_dir: Path, run: str, device: str):
-    """Model, normaliser and the two thresholds a run is scored at."""
-    rd = results_dir / run
-    cfg = load_config(rd / "config.yaml")
-    model = build_model(cfg.model)
-    ck = torch.load(rd / "checkpoints" / "best.pt", map_location="cpu", weights_only=True)
-    model.load_state_dict(ck["model"] if "model" in ck else ck["state_dict"])
-    model.to(device).eval()
-    norm = TargetNormalizer.from_config(cfg.data)
-    spans = ndm.log_spans(cfg.data.t1_min, cfg.data.t1_max, cfg.data.t2_min, cfg.data.t2_max)
-    theta_cal = float(json.loads((results_dir / "threshold_val" / f"{run}.json").read_text())["val_theta"])
-    theta_fit = float(json.loads((rd / "summary.json").read_text())
-                      ["threshold_calibration"]["selected_threshold"])
-    return cfg, model, norm, spans, theta_cal, theta_fit
-
-
 def ladder_paths(cfg, snr: int) -> list[str]:
     """The fixed-SNR files sitting next to each test split of the run's config."""
     paths = cfg.data.test_path if isinstance(cfg.data.test_path, list) else [cfg.data.test_path]
@@ -91,13 +72,16 @@ def relative_errors(query_outputs, trues, theta):
 
 
 def evaluate_run(results_dir: Path, run: str, device: str) -> dict:
-    cfg, model, norm, spans, theta_cal, theta_fit = load_run(results_dir, run, device)
+    """Score one trained model at each test noise level."""
+    loaded = load_run(results_dir / run, device)
+    # Two thresholds: the strict-accuracy one swept on validation by calibrate_threshold.py,
+    # and the run's own fitted one from summary.json.
+    theta_cal = float(json.loads((results_dir / "threshold_val" / f"{run}.json").read_text())["val_theta"])
+    theta_fit = loaded.fitted_threshold
     out = {"theta_calibrated": theta_cal, "theta_fitted": theta_fit, "rungs": {}}
     for snr in SNRS:
-        ds = VoxelDataset(ladder_paths(cfg, snr), cfg.data, norm)
-        q = detr_query_outputs(model, ds, torch.device(device), norm)
-        trues = true_compartments(ds)
-        recs, ngt = ndm.dataset_records(q, trues, spans, TAU, exist_thresh=0.0)
+        q, trues = loaded.predict(ladder_paths(loaded.cfg, snr))
+        recs, ngt = ndm.dataset_records(q, trues, loaded.spans, TAU, exist_thresh=0.0)
         s = score(recs, ngt, theta_cal)
         by_k = score_by_k(recs, ngt, theta_cal)["strict"]
         e1, e2 = relative_errors(q, trues, theta_fit)
@@ -126,6 +110,7 @@ def stack(summary: dict, family: str, key: str, snrs=SNRS_IN_RANGE) -> np.ndarra
 
 
 def draw(summary: dict, out_png: Path) -> None:
+    """Plot model performance across the test noise levels."""
     plt.rcParams.update({
         "figure.dpi": 120, "savefig.dpi": 300, "savefig.bbox": "tight", "font.size": 9,
         "axes.titlesize": 9, "axes.labelsize": 9, "xtick.labelsize": 7, "ytick.labelsize": 7,
@@ -135,6 +120,7 @@ def draw(summary: dict, out_png: Path) -> None:
     fig, axes = plt.subplots(2, 4, figsize=(11.5, 5.6))
 
     def curve(ax, key, title):
+        """Plot each model family's mean and range across noise levels."""
         for fam in families:
             A = stack(summary, fam, key)
             colour = COLOURS.get(fam)
@@ -170,6 +156,7 @@ def latex_table(summary: dict, out_tex: Path) -> None:
     families = list(summary)
 
     def cell(fam, key, i):
+        """Format a family's mean and range as a LaTeX table entry."""
         col = stack(summary, fam, key)[:, i]
         return f"{col.mean():.2f} {{\\scriptsize[{col.max() - col.min():.2f}]}}"
 
@@ -186,6 +173,7 @@ def latex_table(summary: dict, out_tex: Path) -> None:
 
 
 def parse_families(items: list[str] | None) -> dict[str, list[str]]:
+    """Read named groups of runs from command-line options."""
     if not items:
         return DEFAULT_FAMILIES
     families = {}
@@ -198,6 +186,7 @@ def parse_families(items: list[str] | None) -> dict[str, list[str]]:
 
 
 def main() -> None:
+    """Evaluate noise robustness and save the tables and plots."""
     ap = argparse.ArgumentParser(description="Score finished runs on the fixed-SNR test sets.")
     ap.add_argument("--results-dir", default="results", help="Where the runs live.")
     ap.add_argument("--out-dir", default="results/snr_ladder", help="Where to write the outputs.")

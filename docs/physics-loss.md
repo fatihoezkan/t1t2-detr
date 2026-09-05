@@ -26,9 +26,9 @@ open and the signal comes out over-predicted, which is why the weight is ramped 
 over the first epochs.
 
 The resynthesised signal goes through the same per-voxel normalisation as the input. The
-dataset applies `signal_norm` to the signal before the model sees it, and the weights the
-model predicts live in that rescaled space. Without the transform the two sides of the
-comparison would differ by an arbitrary per-voxel factor.
+dataset divides every signal by its own peak magnitude before the model sees it, and the
+weights the model predicts live in that rescaled space. Without the transform the two sides
+of the comparison would differ by an arbitrary per-voxel factor.
 
 The target is configurable. `noisy` compares against the input signal itself, which needs
 no labels; the noise is zero-mean, so the gradient stays unbiased and the loss floor is the

@@ -62,8 +62,8 @@ which rises almost monotonically and saturates at the edge of the search grid.
 The two protocols agree on every arm except `queries_6` and `queries_4`, whose ordering
 swaps.
 
-Nothing is tuned on the test split: not the existence threshold, not the grouping radius in
-`t1t2/postprocess.py`, and not anything else with a knob.
+Nothing is tuned on the test split: not the existence threshold, and not anything else with
+a knob.
 
 ## Three thresholds live in the results
 

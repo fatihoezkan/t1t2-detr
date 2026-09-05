@@ -20,15 +20,18 @@ CHECK = ["t1_3500_t2_500_weighted_long", "baseline_v2_reproduction"]
 
 
 def _j(*p):
+    """Read a JSON file under the results folder."""
     return json.load(open(RES.joinpath(*p)))
 
 
 def _sweep_at(run, dim, theta, key):
+    """Get a saved metric at the requested threshold and dimension."""
     return next(r for r in _j("threshold_sweep", run + ".json")[dim]
                 if abs(r["threshold"] - theta) < 1e-9)[key]
 
 
 def metrics(run):
+    """Collect one run's scores for measuring variation across seeds."""
     m = _j(run, "metrics_detr.json")
     bin0 = _j(run, "parameter_recovery_detr.json")["bins"][0]      # w in [0.05, 0.10)
     try:
@@ -68,6 +71,7 @@ ORDER = ["count acc @own theta (%)", "count acc @0.75 (%)",
 
 
 def report(runs):
+    """Print metric ranges and standard deviations across runs."""
     vals = {r: metrics(r) for r in runs}
     n = len(runs)
     print(f"\nrun-to-run spread over {n} run(s): {', '.join(runs)}\n")

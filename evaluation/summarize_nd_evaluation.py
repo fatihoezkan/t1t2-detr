@@ -41,6 +41,7 @@ GROUPS = [
 
 
 def load_all(res_dir):
+    """Load saved model evaluations from a results folder."""
     out = {}
     for p in sorted(Path(res_dir).glob("*.json")):
         if p.name in ("paired_deltas.json",):
@@ -52,6 +53,7 @@ def load_all(res_dir):
 
 
 def row_of(d):
+    """Turn one model's evaluation into a summary table row."""
     e = d["exact_at_threshold"]
     return {
         "model": d["name"],
@@ -68,12 +70,14 @@ def row_of(d):
 
 
 def restore_records(d):
+    """Restore saved matching records, including infinite unmatched distances."""
     recs = [[{k: (float("inf") if v is None and k == "nd_sum" else v)
               for k, v in r.items()} for r in voxel] for voxel in d["_records_tau7"]]
     return recs, np.asarray(d["_n_gt"])
 
 
 def main(res_dir="results/nd_evaluation"):
+    """Summarize model evaluations and compare their paired results."""
     res_dir = Path(res_dir)
     all_d = load_all(res_dir)
     print(f"loaded {len(all_d)} models: {sorted(all_d)}")

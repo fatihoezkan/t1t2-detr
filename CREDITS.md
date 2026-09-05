@@ -1,6 +1,6 @@
 # Credits
 
-This repository is a from-scratch, T1-T2-native implementation written for the bachelor's
+This repository is, T1-T2-native implementation written for the bachelor's
 thesis *Detection Transformer for Microstructure Quantification from T1-T2 Correlation MRI*
 (Fatih Özkan; advisor Sebastian Endt, Technische Hochschule Ingolstadt).
 
@@ -16,10 +16,10 @@ method: a fixed set of learned queries, a transformer decoder, and a bipartite-m
 loss. Every structural idea in `t1t2/model.py` and `t1t2/loss.py` traces back to this paper.
 
 Johannes Reinhold Schlund, diffusion-correlation DETR, predecessor thesis. The idea of
-solving microstructure quantification as DETR set prediction in the first place. The
-postprocessing in `t1t2/postprocess.py` follows his peak-grouping procedure, moved from his
-(MD, FA, direction, weight) attribute space to (T1, T2, weight), and the figure set in
-`t1t2/viz.py` follows the visual language of his Figures 7, 9, 11, 12, 20 and 23.
+solving microstructure quantification as DETR set prediction in the first place. An earlier
+version of this code also carried his peak-grouping postprocessing, moved to (T1, T2, weight),
+and a figure set in his visual language; neither entered the thesis and both were removed
+from the release.
 
 Marcus Alex Wirth, diffusion-correlation DETR, parallel thesis. The evaluation framework in
 `t1t2/nd_metrics.py` is his Normalised Distance criterion and the mAP construction on top of

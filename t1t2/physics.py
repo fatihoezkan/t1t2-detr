@@ -33,6 +33,7 @@ class Protocol:
 
     @property
     def n_points(self) -> int:
+        """Return the number of measurements in the protocol."""
         return int(self.ti.shape[0])
 
 

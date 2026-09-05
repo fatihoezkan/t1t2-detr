@@ -24,6 +24,7 @@ DEV = ROOT / "data" / "dev"
 
 
 def _two_compartment_loss(mode):
+    """Calculate a simple T1 loss using the chosen weighting rule."""
     cfg = LossConfig(
         t1_weight=1.0,
         t2_weight=0.0,
@@ -43,15 +44,16 @@ def _two_compartment_loss(mode):
 
 
 def test_signal_fraction_loss_uses_weight_sum_not_compartment_count():
-    assert np.isclose(_two_compartment_loss("legacy"), .25 * .9 / 2)
+    """Check how each weighting rule scales the T1 error."""
     assert np.isclose(_two_compartment_loss("signal_fraction"), .25 * .9)
+    assert np.isclose(_two_compartment_loss("sqrt"), .25 * np.sqrt(.9) / 2)
     assert np.isclose(_two_compartment_loss("uniform"), .25 / 2)
 
 
-def test_default_config_keeps_legacy_training_and_evaluation_defaults():
-    cfg = ExperimentConfig(name="legacy_defaults", data=DataConfig(train_path=[]))
-    assert cfg.loss.t1_t2_weighting == "legacy"
-    assert cfg.train.selection_metric == "total_loss"
+def test_default_config_values():
+    """The values an empty config section falls back to."""
+    cfg = ExperimentConfig(name="defaults", data=DataConfig(train_path=[]))
+    assert cfg.loss.t1_t2_weighting == "signal_fraction"
     assert cfg.train.lr_scheduler == "constant"
     assert cfg.train.gradient_clip_norm is None
     assert cfg.evaluation.calibrate_threshold is False
@@ -59,6 +61,7 @@ def test_default_config_keeps_legacy_training_and_evaluation_defaults():
 
 
 def test_parameter_recovery_leads_with_closeness_and_recovered_fraction():
+    """Check recovery scores when a weak compartment is missed."""
     trues = [[(500.0, 50.0, .9), (1000.0, 100.0, .1)]]
     preds = [[(500.0, 50.0, .9)]]  # exact dominant pool, weak pool missed
     analysis = parameter_recovery_analysis(preds, trues)
@@ -71,7 +74,8 @@ def test_parameter_recovery_leads_with_closeness_and_recovered_fraction():
     assert weak_bin["match_rate"] == 0
 
 
-def test_parameter_threshold_can_prefer_closeness_over_exact_count():
+def test_parameter_threshold_prefers_closeness_over_exact_count():
+    """The validation search picks parameter closeness even when the count is then wrong."""
     outputs = {
         "params": np.array([[
             [1000.0, 100.0, 1.0],  # bad but very confident
@@ -80,17 +84,15 @@ def test_parameter_threshold_can_prefer_closeness_over_exact_count():
         "exist_prob": np.array([[.9, .6]]),
     }
     trues = [[(100.0, 10.0, 1.0)]]
-    parameter_choice = calibrate_existence_threshold(
-        outputs, trues, thresholds=[.5, .7], objective="parameter_set_error"
-    )
-    count_choice = calibrate_existence_threshold(
-        outputs, trues, thresholds=[.5, .7], objective="count_accuracy"
-    )
-    assert parameter_choice["selected_threshold"] == .5  # exact parameters + one extra
-    assert count_choice["selected_threshold"] == .7      # correct count but wrong parameters
+    choice = calibrate_existence_threshold(outputs, trues, thresholds=[.5, .7])
+    # At .7 only the confident, wrong query survives: right count, wrong parameters. At .5
+    # the exact query is admitted as well, at the price of one extra compartment.
+    assert choice["selected_threshold"] == .5
+    assert choice["objective"] == "parameter_set_error"
 
 
 def test_physics_configs_are_isolated_and_parameter_first():
+    """Check that physics experiments use the intended parameter-focused settings."""
     # The two physics arms plus their reference (baseline_v2_reproduction, which the one-change
     # test diffs against). All three share the parameter-first recipe; the physics arms differ
     # from the reference only in signal_consistency fields, pinned exactly by
@@ -103,12 +105,11 @@ def test_physics_configs_are_isolated_and_parameter_first():
         assert (cfg.data.t2_min, cfg.data.t2_max) == (5.0, 500.0)
         assert cfg.loss.t1_t2_weighting == "signal_fraction"
         assert cfg.train.epochs == 500
-        assert cfg.train.selection_metric == "parameter_loss"
         assert cfg.train.lr_scheduler == "reduce_on_plateau"
-        assert cfg.evaluation.threshold_objective == "parameter_set_error"
 
 
 def test_parameter_selection_scheduler_and_resume_metadata(tmp_path):
+    """Check that training saves parameter scores and scheduler state."""
     split = lambda name: [str(DEV / f"n{n}" / f"{name}.parquet") for n in (1, 2, 3)]
     cfg = ExperimentConfig(
         name="parameter_smoke",
@@ -120,7 +121,6 @@ def test_parameter_selection_scheduler_and_resume_metadata(tmp_path):
             batch_size=16,
             early_stopping=False,
             device="cpu",
-            selection_metric="parameter_loss",
             lr_scheduler="reduce_on_plateau",
             scheduler_patience=1,
             gradient_clip_norm=1.0,

@@ -185,6 +185,7 @@ def self_check(ref: str = REFERENCE) -> bool:
 
 
 def main() -> int:
+    """Run paired model comparisons or check the statistical helpers."""
     ap = argparse.ArgumentParser()
     ap.add_argument("arms", nargs="*", default=None)
     ap.add_argument("--self-check", action="store_true")

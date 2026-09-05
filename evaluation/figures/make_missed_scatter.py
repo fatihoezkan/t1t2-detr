@@ -6,15 +6,12 @@ results/<run>/ (config, summary.json, best.pt) and the test parquets.
 Writes figures/17_missed_scatter.png.
 Usage: PYTHONPATH=.:datagen python3 evaluation/figures/make_missed_scatter.py
 """
-import json
 import os
 import sys
 from pathlib import Path
 
 import matplotlib as mpl
 import numpy as np
-import pandas as pd
-import torch
 
 mpl.use("Agg")
 import matplotlib.patheffects as pe  # noqa: E402
@@ -25,10 +22,7 @@ sys.path.insert(0, str(ROOT))
 os.chdir(ROOT)
 
 from t1t2 import nd_metrics as ndm  # noqa: E402
-from t1t2.config import load_config  # noqa: E402
-from t1t2.data import TargetNormalizer, VoxelDataset  # noqa: E402
-from t1t2.eval import detr_query_outputs  # noqa: E402
-from t1t2.model import build_model  # noqa: E402
+from t1t2.runs import load_run  # noqa: E402
 
 OUT = ROOT / "figures" / "17_missed_scatter.png"
 BASE, SMALL, TINY = 9, 8, 7
@@ -42,23 +36,13 @@ RUNS = [("baseline_v2_reproduction", "reference (baseline)"),
 
 
 def collect(run):
-    rd = ROOT / "results" / run
-    cfg = load_config(rd / "config.yaml")
-    thr = float(json.load(open(rd / "summary.json"))["threshold_calibration"]["selected_threshold"])
-    model = build_model(cfg.model)
-    ck = torch.load(rd / "checkpoints" / "best.pt", map_location="cpu", weights_only=True)
-    model.load_state_dict(ck["model"] if "model" in ck else ck["state_dict"]); model.eval()
-    norm = TargetNormalizer.from_config(cfg.data)
-    ds = VoxelDataset(cfg.data.test_path, cfg.data, norm)
-    q = detr_query_outputs(model, ds, torch.device("cpu"), norm)
+    """Separate found and missed compartments by T2 and signal fraction."""
+    loaded = load_run(ROOT / "results" / run)
+    cfg, spans, thr = loaded.cfg, loaded.spans, loaded.fitted_threshold
+    q, all_trues = loaded.predict("test")
     P = np.asarray(q["params"]); E = np.asarray(q["exist_prob"])
-    df = pd.read_parquet(cfg.data.test_path)
-    kmax = max(int(c.split("_")[1]) for c in df.columns if c.startswith("T1_"))
-    spans = ndm.log_spans(cfg.data.t1_min, cfg.data.t1_max, cfg.data.t2_min, cfg.data.t2_max)
     F, M = [], []
-    for i, row in enumerate(df.itertuples(index=False)):
-        trues = [(getattr(row, f"T1_{k}"), getattr(row, f"T2_{k}"), getattr(row, f"w_{k}"))
-                 for k in range(1, kmax + 1) if np.isfinite(getattr(row, f"T1_{k}"))]
+    for i, trues in enumerate(all_trues):
         recs = ndm.voxel_records(P[i], E[i], trues, spans, TAU, exist_thresh=thr)
         hit = {r["gt"] for r in recs if r["gt"] is not None}
         for g, t in enumerate(trues):

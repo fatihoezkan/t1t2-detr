@@ -15,21 +15,17 @@ import sys
 from pathlib import Path
 
 import numpy as np
-import torch
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "datagen"))
 os.chdir(ROOT)                      # data paths in config.yaml are relative to the repo root
 
-from t1t2.config import load_config                              # noqa: E402
-from t1t2.data import TargetNormalizer, VoxelDataset             # noqa: E402
-from t1t2.eval import detr_query_outputs, true_compartments      # noqa: E402
-from t1t2.model import build_model                               # noqa: E402
 from t1t2.nd_metrics import (                                    # noqa: E402
-    TAUS_DEFAULT, TAU_BASE, log_spans, dataset_records, map_101_from_records,
+    TAUS_DEFAULT, TAU_BASE, dataset_records, map_101_from_records,
     exact_metrics_from_records,
 )
+from t1t2.runs import load_run                                   # noqa: E402
 
 RES = ROOT / "results"
 OUT = RES / "nd_evaluation" / "tables_2d_3d.json"
@@ -37,19 +33,10 @@ THRESHOLD = 0.75          # the declared cut-off used by the exact F1 columns
 
 
 def scores_for(run, device="cpu"):
-    run_dir = RES / run
-    cfg = load_config(run_dir / "config.yaml")
-    model = build_model(cfg.model)
-    ckpt = torch.load(run_dir / "checkpoints" / "best.pt", map_location="cpu",
-                      weights_only=True)
-    model.load_state_dict(ckpt["model"] if "model" in ckpt else ckpt["state_dict"])
-    model.to(device).eval()
-
-    normalizer = TargetNormalizer.from_config(cfg.data)
-    spans = log_spans(cfg.data.t1_min, cfg.data.t1_max, cfg.data.t2_min, cfg.data.t2_max)
-    ds = VoxelDataset(cfg.data.test_path, cfg.data, normalizer)
-    q = detr_query_outputs(model, ds, torch.device(device), normalizer)
-    t = true_compartments(ds)
+    """Evaluate a model with and without signal fraction in the distance."""
+    loaded = load_run(RES / run, device)
+    q, t = loaded.predict("test")
+    spans = loaded.spans
 
     out = {"threshold": THRESHOLD}
     for dim, inc_w in (("2d", False), ("3d", True)):
@@ -68,6 +55,7 @@ def scores_for(run, device="cpu"):
 
 
 def main():
+    """Build or verify the saved 2D and 3D comparison scores."""
     args = [a for a in sys.argv[1:] if a != "--verify"]
     verify = "--verify" in sys.argv
     if not args:

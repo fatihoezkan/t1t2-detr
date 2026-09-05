@@ -25,6 +25,7 @@ from voxel_simulator.sampler import (
 
 
 def test_generate_voxel_exposes_model_input_signal():
+    """Check that a generated voxel has a finite signal and the requested noise."""
     proto = load_protocol()
     voxel = generate_voxel(0, n_comp=2, protocol=proto, noise_sigma=0.1)
 
@@ -34,6 +35,7 @@ def test_generate_voxel_exposes_model_input_signal():
 
 
 def test_generate_one_matches_voxel_to_row_schema():
+    """Check that direct and step-by-step generation produce the same row."""
     proto = load_protocol()
     voxel = generate_voxel(1, n_comp=2, protocol=proto, noise_sigma=0.1)
 
@@ -71,6 +73,7 @@ def test_schema_width_is_fixed_regardless_of_n_comp():
 
 
 def test_weights_and_t1_gt_t2_in_rows():
+    """Check that generated weights sum to one and T1 exceeds T2."""
     df = generate_dataset(200, n_comp=3, protocol=load_protocol())
     for i in range(1, 4):
         assert (df[f"T1_{i}"] > df[f"T2_{i}"]).all()
@@ -83,6 +86,7 @@ def test_weights_and_t1_gt_t2_in_rows():
 # --------------------------------------------------------------------------------------
 
 def test_ladder_jobs_share_split_and_pin_snr():
+    """Check that noise-test jobs share a split and use fixed SNR values."""
     jobs = {j.name: j for j in build_dataset_jobs(DatasetFamilyConfig(n_comp=2))}
     rungs = [j for name, j in jobs.items() if name.startswith("test_snr")]
     assert rungs, "no ladder jobs built"
@@ -126,6 +130,7 @@ def test_ladder_rungs_share_ground_truth_and_z(tmp_path):
 # --------------------------------------------------------------------------------------
 
 def test_config_rejects_bad_n_comp_and_ranges():
+    """Check that impossible compartment counts and parameter ranges are rejected."""
     with pytest.raises(ValueError, match="n_comp must be in"):
         DatasetFamilyConfig(n_comp=MAX_COMP + 1)
     with pytest.raises(ValueError, match="no .T1, T2. with T2 < T1"):
@@ -139,6 +144,7 @@ def test_config_rejects_colliding_ladder_names():
 
 
 def test_existing_output_is_not_clobbered(tmp_path):
+    """Check that existing data is protected unless overwriting is requested."""
     cfg = DatasetFamilyConfig(out_dir=tmp_path, n_comp=1, n_train=5, n_val=0, n_test=0,
                               n_per_snr=0, snr_ladder=())
     generate_dataset_family(cfg, verbose=False)
@@ -153,6 +159,7 @@ def test_existing_output_is_not_clobbered(tmp_path):
 
 
 def test_no_tmp_files_left_behind(tmp_path):
+    """Check that dataset writing leaves no temporary files."""
     cfg = DatasetFamilyConfig(out_dir=tmp_path, n_comp=1, n_train=5, n_val=0, n_test=0,
                               n_per_snr=0, snr_ladder=())
     generate_dataset_family(cfg, verbose=False)
@@ -160,6 +167,7 @@ def test_no_tmp_files_left_behind(tmp_path):
 
 
 def test_manifest_records_provenance(tmp_path):
+    """Check that the manifest records data settings and software versions."""
     cfg = DatasetFamilyConfig(out_dir=tmp_path, n_comp=2, n_train=5, n_val=0, n_test=0,
                               n_per_snr=0, snr_ladder=())
     generate_dataset_family(cfg, verbose=False)

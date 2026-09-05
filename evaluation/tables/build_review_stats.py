@@ -27,7 +27,7 @@ from t1t2 import nd_metrics as ndm            # noqa: E402
 from t1t2.config import load_config            # noqa: E402
 from t1t2.data import make_dataloader          # noqa: E402
 from t1t2.eval import detr_query_outputs, true_compartments  # noqa: E402
-from t1t2.model import build_model             # noqa: E402
+from t1t2.runs import load_run                 # noqa: E402
 
 RES = ROOT / "results"
 CONFIGS = ROOT / "configs"
@@ -45,6 +45,7 @@ FAMILIES = {
 
 
 def cfg_of(run):
+    """Load a run's settings from configs or its results folder."""
     p = CONFIGS / f"{run}.yaml"
     return load_config(p if p.exists() else RES / run / "config.yaml")
 
@@ -55,17 +56,14 @@ def query_table(run, test_ds):
     if f.exists():
         z = np.load(f)
         return {"params": z["params"], "exist_prob": z["exist_prob"]}
-    model = build_model(cfg_of(run).model)
-    st = torch.load(RES / run / "checkpoints" / "best.pt", map_location="cpu",
-                    weights_only=False)
-    model.load_state_dict(st["model"] if "model" in st else st)
-    model.eval()
+    model = load_run(RES / run).model
     q = detr_query_outputs(model, test_ds, "cpu", test_ds.normalizer, batch_size=2048)
     np.savez_compressed(f, params=q["params"], exist_prob=q["exist_prob"])
     return {"params": q["params"], "exist_prob": q["exist_prob"]}
 
 
 def calibrated_theta(run):
+    """Read the confidence threshold chosen on validation data."""
     return float(json.load(open(RES / "threshold_val" / f"{run}.json"))["val_theta"])
 
 
@@ -225,6 +223,7 @@ if __name__ == "__main__":
             print(f"  done {run}")
 
         def agg(path, sub=None):
+            """Collect the same result field across all runs in a family."""
             v = []
             for r in runs:
                 d = res["runs"][r][path]

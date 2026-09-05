@@ -11,28 +11,15 @@ from __future__ import annotations
 import json, sys
 from pathlib import Path
 import numpy as np
-import torch
 
-from t1t2.config import load_config
-from t1t2.data import TargetNormalizer, VoxelDataset
-from t1t2.eval import detr_query_outputs
-from t1t2.model import build_model
+from t1t2.runs import load_run
 
 
 def analyse(run, device="cpu"):
-    rd = Path("results") / run
-    cfg = load_config(rd / "config.yaml")
-    summ = json.load(open(rd / "summary.json"))
-    theta = float(summ["threshold_calibration"]["selected_threshold"])
-
-    model = build_model(cfg.model)
-    ck = torch.load(rd / "checkpoints" / "best.pt", map_location="cpu", weights_only=True)
-    model.load_state_dict(ck["model"] if "model" in ck else ck["state_dict"])
-    model.to(device).eval()
-
-    norm = TargetNormalizer.from_config(cfg.data)
-    ds = VoxelDataset(cfg.data.test_path, cfg.data, norm)
-    q = detr_query_outputs(model, ds, torch.device(device), norm)
+    """Measure which query slots are active and what they predict."""
+    loaded = load_run(Path("results") / run, device)
+    cfg, rd, theta = loaded.cfg, loaded.dir, loaded.fitted_threshold
+    q, _ = loaded.predict("test")
     params = np.asarray(q["params"])          # (N, Q, 3) T1 ms / T2 ms / w
     probs = np.asarray(q["exist_prob"])       # (N, Q)
     n_vox, n_q = probs.shape
@@ -83,6 +70,7 @@ def analyse(run, device="cpu"):
 
 
 def report(o):
+    """Print query activity, prediction ranges, and duplicate counts."""
     print(f"\n=== {o['run']}   theta={o['theta']:.2f}   {o['n_voxels']} test voxels ===")
     print(f"{'slot':>4} {'active%':>8} {'max prob':>9} {'med w':>7} "
           f"{'T1 p10-p90 (ms)':>19} {'T2 p10-p90 (ms)':>19}")

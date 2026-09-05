@@ -25,6 +25,7 @@ from voxel_simulator.sampler import (
 
 
 def test_random_compartment_keeps_t1_above_t2_and_in_range():
+    """Check that sampled compartments respect their bounds and T1 exceeds T2."""
     rng = np.random.default_rng(0)
     for _ in range(2000):
         t1, t2 = sample_random_compartment(rng)
@@ -34,6 +35,7 @@ def test_random_compartment_keeps_t1_above_t2_and_in_range():
 
 
 def test_voxel_spec_shapes_and_t1_gt_t2():
+    """Check parameter sizes and valid relaxation times for each compartment count."""
     for n_comp in range(1, MAX_COMP + 1):
         for vid in range(50):
             spec = sample_voxel_spec(vid, n_comp=n_comp, base_seed=0)
@@ -43,6 +45,7 @@ def test_voxel_spec_shapes_and_t1_gt_t2():
 
 
 def test_weights_sum_to_one_and_respect_floor():
+    """Check that sampled weights sum to one and respect the minimum."""
     rng = np.random.default_rng(0)
     for n in range(1, MAX_COMP + 1):
         w = sample_weights(n, rng)
@@ -51,6 +54,7 @@ def test_weights_sum_to_one_and_respect_floor():
 
 
 def test_n_comp_outside_range_raises():
+    """Check that unsupported compartment counts are rejected."""
     for bad in (0, MAX_COMP + 1):
         with pytest.raises(ValueError, match="n_comp must be in"):
             sample_voxel_spec(0, n_comp=bad)
@@ -61,6 +65,7 @@ def test_n_comp_outside_range_raises():
 # --------------------------------------------------------------------------------------
 
 def test_same_key_is_bit_reproducible():
+    """Check that the same sampling key produces identical voxel parameters."""
     a = sample_voxel_spec(5, n_comp=3, base_seed=0, split_code=SPLIT_TRAIN)
     b = sample_voxel_spec(5, n_comp=3, base_seed=0, split_code=SPLIT_TRAIN)
     np.testing.assert_array_equal(a.t1, b.t1)
@@ -99,6 +104,7 @@ def test_param_stream_ignores_whether_snr_was_drawn():
 
 
 def test_voxel_rng_streams_are_independent():
+    """Check that parameter and noise streams produce different random draws."""
     from voxel_simulator.sampler import STREAM_NOISE, STREAM_PARAMS
 
     a = voxel_rng(0, 2, SPLIT_TRAIN, 3, STREAM_PARAMS).standard_normal(8)
@@ -111,6 +117,7 @@ def test_voxel_rng_streams_are_independent():
 # --------------------------------------------------------------------------------------
 
 def test_validate_ranges_rejects_infeasible_and_inverted():
+    """Check that invalid or physically impossible parameter ranges are rejected."""
     with pytest.raises(ValueError, match="no .T1, T2. with T2 < T1"):
         validate_ranges((50.0, 100.0), (200.0, 3000.0))     # t2_min above t1_max
     for bad in ((0.0, 100.0), (100.0, 50.0)):
@@ -335,14 +342,17 @@ def test_t1_log_uniform_consumes_exactly_two_uniforms_per_compartment():
     """
     class CountingRng:
         def __init__(self, gen):
+            """Wrap the random generator and start counting uniform draws."""
             self._gen = gen
             self.uniform_calls = 0
 
         def uniform(self, *args, **kwargs):
+            """Count a uniform draw and pass it to the wrapped generator."""
             self.uniform_calls += 1
             return self._gen.uniform(*args, **kwargs)
 
         def __getattr__(self, name):
+            """Pass other attribute requests to the wrapped generator."""
             return getattr(self._gen, name)
 
     n = 5_000
@@ -393,6 +403,7 @@ def test_analytic_acceptance_rate_differs_between_thesis_and_default_ranges():
     Module default ranges (T1 50-4000, T2 5-3000): 0.700, i.e. 1.43.
     """
     def acceptance(t1_range, t2_range):
+        """Calculate the expected fraction of accepted log-space draws."""
         a, b, c, d = _log_bounds(t1_range, t2_range)
         below = np.minimum(b, d)
         tri = ((below - c) ** 2 - (a - c) ** 2) / 2.0

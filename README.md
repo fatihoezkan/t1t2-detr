@@ -36,12 +36,13 @@ compartments. [CREDITS.md](CREDITS.md) separates inherited from original work in
 
 ```
 t1t2-detr/
+├── main.py                 the pipeline end to end: data, train, evaluate, aggregate, figures, tables, notebook
 ├── datagen/                synthetic data
 │   ├── voxel_simulator/      forward model, sampler, noise, dataset writer
 │   ├── data/ti_te_dict.mat   the 8 x 8 acquisition protocol, used exactly as stored
 │   ├── run_generator.py      command-line entry point
 │   └── tests/                68 tests
-├── t1t2/                   model, loss, training, evaluation, figures
+├── t1t2/                   model, loss, training, evaluation
 ├── evaluation/             scripts that score finished runs and compare them
 ├── configs/                one YAML per trained run
 │   ├── *.yaml                the reference run, the eleven single-change arms, a smoke config
@@ -53,7 +54,7 @@ t1t2-detr/
 ├── evaluation/tables/      the scripts that write the thesis's LaTeX tables
 ├── figures/, tables/       their outputs, as used in the thesis
 ├── notebooks/              thesis.ipynb, the executed notebook that walks through data, examples and results
-├── tests/                  89 tests for the t1t2 package
+├── tests/                  59 tests for the t1t2 package
 ├── docs/                   data generation, evaluation protocol, experiments, physics loss
 └── slurm/                  a generic cluster job template
 ```
@@ -108,8 +109,8 @@ compartments (T1, T2, w) --forward model--> 64-point signal --noise--> parquet r
                                                                           v
                train, checkpoint, resume, write results/<name>/                      t1t2/train.py, experiment.py
                                                                           |
-               threshold, group, match to truth, score, compare runs      v          t1t2/eval.py, postprocess.py,
-                                                                                     t1t2/nd_metrics.py, evaluation/
+               threshold, match to truth, score, compare runs             v          t1t2/eval.py, nd_metrics.py,
+                                                                                     t1t2/runs.py, evaluation/
 ```
 
 | module | what it does |
@@ -120,7 +121,8 @@ compartments (T1, T2, w) --forward model--> 64-point signal --noise--> parquet r
 | `t1t2/loss.py` | Hungarian matching, regression on matched pairs, existence BCE; the `t1_t2_weighting` switch |
 | `t1t2/physics_loss.py` | the signal-consistency term, soft-gated by the existence scores |
 | `t1t2/train.py`, `experiment.py` | early stopping on validation parameter loss, resumable checkpoints, config in, `results/<name>/` out |
-| `t1t2/postprocess.py`, `eval.py` | existence threshold (chosen on validation), peak grouping, matching to the truth, per-count metrics, physics checks |
+| `t1t2/eval.py` | existence threshold (chosen on validation), matching to the truth, per-count metrics, physics checks |
+| `t1t2/runs.py` | loads a finished `results/<name>/` (config, best checkpoint, normaliser) for every evaluation script |
 | `t1t2/nd_metrics.py` | the Normalised Distance criterion, strict voxel accuracy, mAP |
 | `evaluation/` | threshold calibration and sweeps, ND evaluation and its summary table, paired tests, the one-change comparison, the SNR ladder |
 
@@ -141,7 +143,7 @@ reproducible under the version that produced the data.
 Run the tests. The first run generates a small development dataset under `data/dev/`:
 
 ```bash
-PYTHONPATH=.:datagen python -m pytest tests/ -q          # 89 passed
+PYTHONPATH=.:datagen python -m pytest tests/ -q          # 59 passed
 cd datagen && PYTHONPATH=. python -m pytest tests/ -q    # 68 passed
 ```
 
@@ -153,6 +155,23 @@ PYTHONPATH=.:datagen python -m t1t2.experiment --config configs/smoke.yaml --no-
 ```
 
 ## Reproducing the thesis
+
+### Everything at once
+
+`main.py` runs the stages below in order, each as one of the scripts named in the following
+sections, and skips every step whose outputs already exist. On a fresh clone with the
+release checkpoints unpacked it regenerates the derived files without touching the data or
+the trained runs.
+
+```bash
+python main.py                                        # all stages
+python main.py evaluate figures --runs loss_uniform   # some stages, some runs
+python main.py --force tables                         # redo even if the outputs exist
+python main.py --dry-run                              # print the plan
+```
+
+The train stage is the 26 runs of the matrix; on a GPU node it is a day, on a CPU it is not
+practical. Submit `slurm/train.slurm` per config instead and run the other stages afterwards.
 
 ### Data
 

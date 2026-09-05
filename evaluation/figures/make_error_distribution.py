@@ -85,6 +85,7 @@ OUT_JSON.write_text(json.dumps(summary, indent=1))
 
 
 def ecdf(ax, x, **kw):
+    """Plot the percentage of values at or below each value."""
     x = np.sort(x); ax.plot(x, np.arange(1, len(x) + 1) / len(x) * 100, **kw)
 
 

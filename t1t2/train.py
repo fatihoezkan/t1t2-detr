@@ -26,6 +26,10 @@ from .physics_loss import SignalConsistencyLoss
 # Loss components in logging order. "sc" is the signal-consistency term, 0.0 when it is off.
 _LOSS_KEYS = ("loss", "t1", "t2", "wt", "ex", "sc")
 
+# Best-checkpoint selection and early stopping watch the validation T1 + T2 + weight loss, so
+# a checkpoint is never chosen for a good existence head at the cost of worse parameters.
+SELECTION_METRIC = "parameter_loss"
+
 
 def _total_limit(data_cfg) -> int | None:
     """Per-path training cap times the number of paths, which is what the loader expects.
@@ -122,18 +126,8 @@ def _run_epoch(model, loader, crit, device, opt=None, aux_weight=1.0,
     return result
 
 
-def _selection_value(metrics: dict, selection_metric: str) -> float:
-    """The validation scalar used for best-checkpoint selection and early stopping."""
-    if selection_metric == "total_loss":
-        return float(metrics["loss"])
-    if selection_metric == "parameter_loss":
-        return float(metrics["parameter_loss"])
-    raise ValueError(
-        f"selection_metric must be total_loss|parameter_loss; got {selection_metric!r}"
-    )
-
-
 def _build_scheduler(opt, train_cfg):
+    """Set up learning-rate reduction, or keep the rate constant."""
     mode = train_cfg.lr_scheduler
     if mode == "constant":
         return None
@@ -200,9 +194,8 @@ def train(cfg: ExperimentConfig, results_dir=None, max_epochs=None, resume=True,
         if wu <= 0 or epoch >= wu:
             return w
         return w * (epoch + 1) / wu
-    # Filtering on requires_grad keeps a frozen encoder out of the optimiser.
     opt = torch.optim.AdamW(
-        filter(lambda p: p.requires_grad, model.parameters()),
+        model.parameters(),
         lr=cfg.train.lr, weight_decay=cfg.train.weight_decay, betas=tuple(cfg.train.opt_betas),
     )
     scheduler = _build_scheduler(opt, cfg.train)
@@ -246,11 +239,11 @@ def train(cfg: ExperimentConfig, results_dir=None, max_epochs=None, resume=True,
                          phys_crit=phys_crit,
                          phys_lambda=float(cfg.loss.signal_consistency_weight))
               if val_loader else {})
-        selection_value = _selection_value(va, cfg.train.selection_metric) if va else None
+        selection_value = float(va[SELECTION_METRIC]) if va else None
         steps += len(train_loader)
         history.append({
             "epoch": epoch, "train": tr, "val": va,
-            "selection_metric": cfg.train.selection_metric,
+            "selection_metric": SELECTION_METRIC,
             "selection_value": selection_value,
             "phys_lambda": lam,
             "lr": float(opt.param_groups[0]["lr"]),
@@ -271,7 +264,7 @@ def train(cfg: ExperimentConfig, results_dir=None, max_epochs=None, resume=True,
                     "val": best_val,
                     "val_loss": float(va["loss"]),
                     "parameter_loss": float(va["parameter_loss"]),
-                    "selection_metric": cfg.train.selection_metric,
+                    "selection_metric": SELECTION_METRIC,
                 },
                 best_ckpt,
             )
@@ -281,16 +274,15 @@ def train(cfg: ExperimentConfig, results_dir=None, max_epochs=None, resume=True,
         if scheduler is not None and va:
             scheduler.step(selection_value)
 
-        # Checkpoint on the configured cadence and always on the final epoch. history.json
-        # is rewritten every epoch so a running job's curves can be watched.
-        if epoch % cfg.train.ckpt_every == 0 or epoch == epochs - 1:
-            torch.save(
-                {"model": model.state_dict(), "opt": opt.state_dict(), "epoch": epoch,
-                 "history": history, "best_val": best_val, "best_epoch": best_epoch,
-                 "bad_epochs": bad_epochs,
-                 "scheduler": None if scheduler is None else scheduler.state_dict()},
-                last_ckpt,
-            )
+        # last.pt and history.json are rewritten every epoch, so a killed job resumes from the
+        # last completed epoch and a running job's curves can be watched.
+        torch.save(
+            {"model": model.state_dict(), "opt": opt.state_dict(), "epoch": epoch,
+             "history": history, "best_val": best_val, "best_epoch": best_epoch,
+             "bad_epochs": bad_epochs,
+             "scheduler": None if scheduler is None else scheduler.state_dict()},
+            last_ckpt,
+        )
         with open(results_dir / "history.json", "w") as f:
             json.dump(history, f, indent=2)
 
@@ -299,8 +291,7 @@ def train(cfg: ExperimentConfig, results_dir=None, max_epochs=None, resume=True,
             msg += (f" | val {va['loss']:.5f} (t1 {va['t1']:.4f} t2 {va['t2']:.4f} "
                     f"wt {va['wt']:.4f} ex {va['ex']:.4f}")
             msg += f" sc {va['sc']:.5f})" if phys_crit is not None else ")"
-            if cfg.train.selection_metric != "total_loss":
-                msg += f" | select parameter {selection_value:.5f}"
+            msg += f" | select parameter {selection_value:.5f}"
             msg += "  *best*" if improved else f"  (no gain {bad_epochs}/{cfg.train.early_stopping_patience})"
         log(msg)
 
@@ -314,7 +305,7 @@ def train(cfg: ExperimentConfig, results_dir=None, max_epochs=None, resume=True,
         model.load_state_dict(torch.load(best_ckpt, map_location=device)["model"])
         log(
             f"[{cfg.name}] loaded best.pt (epoch {best_epoch + 1}, "
-            f"{cfg.train.selection_metric} {best_val:.5f}) for evaluation"
+            f"{SELECTION_METRIC} {best_val:.5f}) for evaluation"
         )
 
     return history, str(results_dir), model

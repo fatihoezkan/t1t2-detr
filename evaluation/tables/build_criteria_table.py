@@ -13,10 +13,12 @@ RES, OUT = ROOT / "results", ROOT / "tables" / "tab_criteria.tex"
 
 
 def metrics(run):
+    """Read a run's saved evaluation metrics."""
     return json.load(open(RES / run / "metrics_detr.json"))
 
 
 def faintest_band_t1(run):
+    """Get the percentage T1 error for the weakest compartments."""
     return json.load(open(RES / run / "parameter_recovery_detr.json"))["bins"][0]["t1_relative_error_median"] * 100
 
 

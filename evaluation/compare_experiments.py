@@ -4,9 +4,9 @@
 Reads results/<run>/summary.json and config.yaml. Prints metrics as rows and runs as columns,
 reference first, with a signed delta per arm, then a per-arm verdict from the config diff
 (single change / NOT INTERPRETABLE / DIFFERENT DATASET / CONTROL). Writes comparison.md,
-comparison_metrics.csv and comparison_arms.csv to results/_comparison/; --figures regenerates
-the per-run figure set (slow). One run per arm, so no error bars; see docs/experiments.md.
-    python evaluation/compare_experiments.py --all | <run> [<run> ...] [--figures]
+comparison_metrics.csv and comparison_arms.csv to results/_comparison/. One run per arm, so no
+error bars; see docs/experiments.md.
+    python evaluation/compare_experiments.py --all | <run> [<run> ...]
 """
 from __future__ import annotations
 
@@ -263,6 +263,7 @@ def verdict(baseline: dict, arm: dict) -> dict:
 # formatting
 # --------------------------------------------------------------------------------------------
 def fmt(value: float | None, kind: str) -> str:
+    """Format a metric with the right units and precision."""
     if value is None:
         return "-"
     if isinstance(value, float) and math.isnan(value):
@@ -338,6 +339,7 @@ def build_metric_rows(runs: list[dict], baseline: dict) -> tuple[list[list[str]]
 def weight_bin_block(runs: list[dict], baseline: dict) -> tuple[list[list[str]], list[str]]:
     """Recovery resolved by true compartment weight, the block the loss_uniform arm is judged on."""
     def bins_of(run):
+        """Look up recovery results by signal-fraction group."""
         b = run["summary"].get("detr", {}).get("parameter_recovery", {}).get("bins", [])
         return {x["label"]: x for x in b}
 
@@ -362,9 +364,11 @@ def weight_bin_block(runs: list[dict], baseline: dict) -> tuple[list[list[str]],
 
 
 def markdown_table(header: list[str], rows: list[list[str]], align_first_left=True) -> str:
+    """Arrange headers and rows into a readable Markdown table."""
     widths = [max(len(header[i]), *(len(r[i]) for r in rows)) if rows else len(header[i])
               for i in range(len(header))]
     def line(cells):
+        """Format one table row with evenly padded columns."""
         return "| " + " | ".join(c.ljust(widths[i]) for i, c in enumerate(cells)) + " |"
     sep = "|" + "|".join(
         ("-" * (w + 2)) if (i == 0 and align_first_left) else ("-" * (w + 1) + ":")
@@ -417,6 +421,7 @@ sentence as its result. The numbers are in `docs/experiments.md`.
 
 
 def write_report(runs: list[dict], out_dir: Path, notes_extra: list[str]) -> dict:
+    """Save the experiment comparison as Markdown, CSV, and JSON."""
     baseline = runs[0]
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -505,30 +510,6 @@ def write_report(runs: list[dict], out_dir: Path, notes_extra: list[str]) -> dic
 
 
 # --------------------------------------------------------------------------------------------
-# figures
-# --------------------------------------------------------------------------------------------
-def regenerate_figures(runs: list[dict], include_baseline: bool, log=print) -> list[str]:
-    """Regenerate the Schlund-style figure set for each run.
-
-    Behind a flag because it is a full forward pass over validation and test plus a
-    204-combination grouping sweep per run. The reference run is skipped unless asked for.
-    johannes_figure_set writes into figures_johannes/, never into the run's own figures/.
-    """
-    sys.path.insert(0, str(REPO_ROOT))
-    from t1t2.viz import johannes_figure_set
-
-    done = []
-    for r in runs:
-        if r["name"] == BASELINE_RUN and not include_baseline:
-            log(f"[figures] skipping the reference run (pass --figures-baseline to force)")
-            continue
-        log(f"[figures] {r['name']}")
-        m = johannes_figure_set(r["dir"], out_dir=r["dir"] / "figures_johannes", log=log)
-        done.extend(str(p) for p in m["figures"])
-    return done
-
-
-# --------------------------------------------------------------------------------------------
 # cli
 # --------------------------------------------------------------------------------------------
 def discover_runs(results_dir: Path) -> list[str]:
@@ -541,6 +522,7 @@ def discover_runs(results_dir: Path) -> list[str]:
 
 
 def main(argv=None) -> int:
+    """Compare the requested runs with the reference experiment."""
     ap = argparse.ArgumentParser(
         description="Compare finished experiment arms against the reference run.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -554,10 +536,6 @@ def main(argv=None) -> int:
                     help="default: <repo>/results")
     ap.add_argument("--out-dir", default=None,
                     help="default: <results-dir>/_comparison")
-    ap.add_argument("--figures", action="store_true",
-                    help="also regenerate the Schlund-style figure set per arm (slow)")
-    ap.add_argument("--figures-baseline", action="store_true",
-                    help="with --figures, also re-figure the reference run")
     ap.add_argument("--quiet", action="store_true")
     args = ap.parse_args(argv)
 
@@ -598,9 +576,6 @@ def main(argv=None) -> int:
             "column alone, which is correct and not yet a comparison.")
 
     result = write_report(runs, out_dir, notes_extra)
-
-    if args.figures:
-        result["figures"] = regenerate_figures(runs, args.figures_baseline, log=log)
 
     if not args.quiet:
         print()

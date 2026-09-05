@@ -30,31 +30,17 @@ from .physics import Protocol, forward_torch, load_protocol
 _TARGETS = ("noisy", "clean")
 
 
-def _denorm_torch(x: torch.Tensor, lo: float, hi: float, mode: str) -> torch.Tensor:
+def _denorm_torch(x: torch.Tensor, lo: float, hi: float) -> torch.Tensor:
     """Torch counterpart of TargetNormalizer._inv: [0, 1] back to milliseconds."""
-    if mode == "identity":
-        return x
-    if mode == "linear_minmax":
-        return lo + x * (hi - lo)
-    if mode == "log_minmax":
-        llo, lhi = math.log(lo), math.log(hi)
-        return torch.exp(llo + x * (lhi - llo))
-    raise ValueError(f"unknown normalization {mode!r}")
+    llo, lhi = math.log(lo), math.log(hi)
+    return torch.exp(llo + x * (lhi - llo))
 
 
-def _signal_norm_torch(s: torch.Tensor, mode: str) -> torch.Tensor:
-    """Torch counterpart of data._apply_signal_norm; the two must stay in step."""
-    if mode == "none":
-        return s
-    if mode == "max":
-        m = s.abs().amax(dim=1, keepdim=True)
-        m = torch.where(m == 0, torch.ones_like(m), m)
-        return s / m
-    if mode == "first":
-        f = s[:, :1]
-        f = torch.where(f == 0, torch.ones_like(f), f)
-        return s / f
-    raise ValueError(f"unknown signal_norm {mode!r}")
+def _signal_norm_torch(s: torch.Tensor) -> torch.Tensor:
+    """Torch counterpart of data._normalize_signal; the two must stay in step."""
+    m = s.abs().amax(dim=1, keepdim=True)
+    m = torch.where(m == 0, torch.ones_like(m), m)
+    return s / m
 
 
 class SignalConsistencyLoss(nn.Module):
@@ -63,30 +49,24 @@ class SignalConsistencyLoss(nn.Module):
     forward(y_pred, X, y_true) is unweighted; train.py applies the lambda schedule.
 
         y_pred : (B, n_queries, 4)  [t1n, t2n, w, exist_logit], t1n/t2n in [0, 1]
-        X      : (B, P)             the input signal with signal_norm already applied
+        X      : (B, P)             the input signal, already divided by its peak
         y_true : (B, max_comp * 3)  normalised ground truth, used only for target="clean"
     """
 
     def __init__(self, data_cfg, loss_cfg, protocol: Protocol | None = None):
+        """Set the signal target, protocol, and scaling for the physics loss."""
         super().__init__()
-        if loss_cfg.signal_consistency_type != "mse":
-            raise NotImplementedError(
-                "signal_consistency_type='rician' is reserved for magnitude data; the "
-                "simulated signals are signed, so only 'mse' is implemented."
-            )
         self.target = loss_cfg.signal_consistency_target
         if self.target not in _TARGETS:
             raise ValueError(f"signal_consistency_target must be one of {_TARGETS}; got {self.target!r}")
         self.protocol = protocol or load_protocol()
-        self.norm_mode = data_cfg.normalization
-        self.signal_norm = data_cfg.signal_norm
         self.t1_lo, self.t1_hi = float(data_cfg.t1_min), float(data_cfg.t1_max)
         self.t2_lo, self.t2_hi = float(data_cfg.t2_min), float(data_cfg.t2_max)
 
     def _params_ms(self, t1n, t2n, w):
         """Stack normalised (t1n, t2n, w) into the (B, K, 3) millisecond table for forward_torch."""
-        t1 = _denorm_torch(t1n, self.t1_lo, self.t1_hi, self.norm_mode)
-        t2 = _denorm_torch(t2n, self.t2_lo, self.t2_hi, self.norm_mode)
+        t1 = _denorm_torch(t1n, self.t1_lo, self.t1_hi)
+        t2 = _denorm_torch(t2n, self.t2_lo, self.t2_hi)
         return torch.stack([t1, t2, w], dim=-1)
 
     def synthesize(self, y_pred: torch.Tensor) -> torch.Tensor:
@@ -94,7 +74,7 @@ class SignalConsistencyLoss(nn.Module):
         w_eff = y_pred[..., 2] * torch.sigmoid(y_pred[..., 3])          # (B, Q), soft gate
         params = self._params_ms(y_pred[..., 0], y_pred[..., 1], w_eff)
         s_hat = forward_torch(self.protocol, params)                    # (B, P)
-        return _signal_norm_torch(s_hat, self.signal_norm)
+        return _signal_norm_torch(s_hat)
 
     def _clean_target(self, y_true: torch.Tensor) -> torch.Tensor:
         """Noise-free signal from the ground-truth table. Padded slots carry w=0 and drop out."""
@@ -103,9 +83,10 @@ class SignalConsistencyLoss(nn.Module):
             yt = y_true.reshape(B, W // 3, 3)
             params = self._params_ms(yt[..., 0], yt[..., 1], yt[..., 2])
             s = forward_torch(self.protocol, params)
-            return _signal_norm_torch(s, self.signal_norm)
+            return _signal_norm_torch(s)
 
     def forward(self, y_pred, X, y_true):
+        """Measure how far the reconstructed signal is from its target."""
         s_hat = self.synthesize(y_pred)
         tgt = X if self.target == "noisy" else self._clean_target(y_true)
         return F.mse_loss(s_hat, tgt)

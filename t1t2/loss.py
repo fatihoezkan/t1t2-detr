@@ -26,8 +26,6 @@ class HungarianLoss(nn.Module):
     T1/T2 error:
 
       signal_fraction  scaled by w; per-voxel reduction is sum(w * e) / sum(w)
-      legacy           scaled by w; reduced by a plain mean over matched pairs
-                       (reproduces the very first baseline)
       sqrt             scaled by sqrt(w)
       uniform          no scaling; every compartment counts the same
 
@@ -37,19 +35,21 @@ class HungarianLoss(nn.Module):
     """
 
     def __init__(self, cfg):
+        """Set how much each prediction error contributes to the loss."""
         super().__init__()
         self.t1_w = cfg.t1_weight
         self.t2_w = cfg.t2_weight
         self.wt_w = cfg.w_weight
         self.ex_w = cfg.exist_weight
         self.t1_t2_weighting = cfg.t1_t2_weighting
-        if self.t1_t2_weighting not in {"legacy", "signal_fraction", "uniform", "sqrt"}:
+        if self.t1_t2_weighting not in {"signal_fraction", "uniform", "sqrt"}:
             raise ValueError(
-                "t1_t2_weighting must be legacy|signal_fraction|uniform|sqrt; "
+                "t1_t2_weighting must be signal_fraction|uniform|sqrt; "
                 f"got {self.t1_t2_weighting!r}"
             )
 
     def forward(self, y_pred, y_true, n_comp):
+        """Match predictions to true compartments and calculate their errors."""
         device = y_pred.device
         B, n_queries, _ = y_pred.shape
         n_reg = y_pred.shape[-1] - 1                       # three regression targets
@@ -121,6 +121,7 @@ class HungarianLoss(nn.Module):
 
         # 5. Reduce the matched-pair errors to one number per voxel.
         def _per_voxel_mean(vals):
+            """Average matched errors separately for each voxel."""
             s = torch.zeros(B, device=device).index_add_(0, bidx, vals)
             c = torch.zeros(B, device=device).index_add_(0, bidx, torch.ones_like(vals))
             return s / c.clamp(min=1.0)

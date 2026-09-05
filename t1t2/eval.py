@@ -290,10 +290,12 @@ def parameter_recovery_analysis(preds, trues, weight_bins=None):
 
 
 def _median(a):
+    """Return the middle value, or NaN if there are no values."""
     return float(np.median(a)) if len(a) else float("nan")
 
 
 def _mean(a):
+    """Return the average, or NaN if there are no values."""
     return float(np.mean(a)) if len(a) else float("nan")
 
 
@@ -453,19 +455,13 @@ def compute_metrics(preds, trues, n_queries=10):
     return m
 
 
-def calibrate_existence_threshold(query_outputs, trues, thresholds=None,
-                                  objective="count_accuracy"):
+def calibrate_existence_threshold(query_outputs, trues, thresholds=None):
     """Choose the existence threshold on validation data; the test split takes no part.
 
-    count_accuracy reproduces the rule the first baseline used. parameter_set_error favours
-    closeness of T1, T2 and weight and charges missed or extra compartments through the bounded
-    parameter-set score.
+    The objective is the bounded parameter-set error: it favours closeness of T1, T2 and
+    weight and charges missed or extra compartments, so it has an interior optimum. Ties go
+    to more recovered signal, then a lower weight error, then the threshold nearest 0.5.
     """
-    if objective not in {"count_accuracy", "parameter_set_error"}:
-        raise ValueError(
-            "threshold objective must be count_accuracy|parameter_set_error; "
-            f"got {objective!r}"
-        )
     if thresholds is None:
         thresholds = np.linspace(0.05, 0.95, 91)
     curve = []
@@ -494,25 +490,16 @@ def calibrate_existence_threshold(query_outputs, trues, thresholds=None,
         })
     if not curve:
         raise ValueError("threshold grid is empty")
-    if objective == "count_accuracy":
-        key = lambda x: (
-            -x["count_accuracy"],
-            x["count_mae"],
-            -x["existence_f1"],
-            abs(x["threshold"] - 0.5),
-            x["threshold"],
-        )
-    else:
-        key = lambda x: (
-            x["parameter_set_error"],
-            -x["recovered_signal_fraction"],
-            x["weight_set_l1_error_mean"],
-            abs(x["threshold"] - 0.5),
-            x["threshold"],
-        )
+    key = lambda x: (
+        x["parameter_set_error"],
+        -x["recovered_signal_fraction"],
+        x["weight_set_l1_error_mean"],
+        abs(x["threshold"] - 0.5),
+        x["threshold"],
+    )
     selected = min(curve, key=key)
     return {
-        "objective": objective,
+        "objective": "parameter_set_error",
         "selected_threshold": selected["threshold"],
         "selected": selected,
         "curve": curve,

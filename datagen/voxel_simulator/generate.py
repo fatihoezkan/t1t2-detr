@@ -265,6 +265,7 @@ class DatasetFamilyConfig:
     sigma_ladder: tuple[float, ...] = (0.05, 0.1, 0.2)
 
     def __post_init__(self) -> None:
+        """Check dataset settings before generating any voxels."""
         # Validate up front so a bad config fails before any voxel is generated.
         if min(self.n_train, self.n_val, self.n_test, self.n_per_snr) < 0:
             raise ValueError("dataset sizes must be nonnegative")
@@ -365,6 +366,7 @@ def _git_state(repo_dir: Path) -> dict:
     import subprocess
 
     def _run(*args: str) -> str | None:
+        """Read command output, returning None if the command fails."""
         try:
             out = subprocess.run(args, cwd=repo_dir, capture_output=True, text=True, timeout=10)
             return out.stdout.strip() if out.returncode == 0 else None

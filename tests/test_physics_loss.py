@@ -22,16 +22,19 @@ ROOT = Path(__file__).resolve().parents[1]
 
 @pytest.fixture(scope="module")
 def proto():
+    """Load the acquisition protocol used by the physics tests."""
     return load_protocol()
 
 
 @pytest.fixture()
 def dcfg():
+    """Create data settings with the test T1 and T2 ranges."""
     return DataConfig(train_path="unused", t1_min=50.0, t1_max=3500.0, t2_min=5.0, t2_max=500.0)
 
 
 @pytest.fixture()
 def compartments():
+    """Create three reproducible compartments with valid parameters."""
     rng = np.random.default_rng(0)
     t1 = rng.uniform(50, 3500, 3)
     t2 = np.minimum(rng.uniform(5, 500, 3), t1 * 0.9)
@@ -40,6 +43,7 @@ def compartments():
 
 
 def _sc(dcfg, target):
+    """Build a physics loss with the requested signal target."""
     lcfg = LossConfig(signal_consistency=True, signal_consistency_weight=1.0,
                       signal_consistency_target=target)
     return SignalConsistencyLoss(dcfg, lcfg)
@@ -57,6 +61,7 @@ def _perfect_pred(nz, t1, t2, w, n_queries=10):
 
 
 def _truth_tensors(nz, t1, t2, w, proto):
+    """Turn true compartments into normalized targets and a clean signal."""
     y_true = torch.tensor(
         np.stack([nz.normalize_t1(t1), nz.normalize_t2(t2), w], -1).reshape(1, -1),
         dtype=torch.float32,
@@ -67,23 +72,25 @@ def _truth_tensors(nz, t1, t2, w, proto):
 
 
 def test_denorm_matches_target_normalizer(dcfg, compartments):
+    """Check that Torch converts scaled T1 values back correctly."""
     t1, _, _ = compartments
     nz = TargetNormalizer.from_config(dcfg)
-    back = _denorm_torch(torch.tensor(nz.normalize_t1(t1)), 50.0, 3500.0, "log_minmax")
+    back = _denorm_torch(torch.tensor(nz.normalize_t1(t1)), 50.0, 3500.0)
     assert np.abs(back.numpy() - t1).max() < 1e-9
 
 
 def test_signal_norm_matches_dataset_transform():
-    from t1t2.data import _apply_signal_norm
+    """Check that physics-loss signal scaling matches dataset scaling."""
+    from t1t2.data import _normalize_signal
     rng = np.random.default_rng(1)
     X = rng.normal(size=(8, 64)).astype(np.float32)
-    for mode in ("none", "max", "first"):
-        ref = _apply_signal_norm(X.copy(), mode)
-        got = _signal_norm_torch(torch.tensor(X), mode).numpy()
-        assert np.abs(ref - got).max() < 1e-6, mode
+    ref = _normalize_signal(X.copy())
+    got = _signal_norm_torch(torch.tensor(X)).numpy()
+    assert np.abs(ref - got).max() < 1e-6
 
 
 def test_clean_target_matches_generator(dcfg, proto, compartments):
+    """Check that the clean loss target matches the simulated signal."""
     t1, t2, w = compartments
     nz = TargetNormalizer.from_config(dcfg)
     y_true, X = _truth_tensors(nz, t1, t2, w, proto)
@@ -93,6 +100,7 @@ def test_clean_target_matches_generator(dcfg, proto, compartments):
 
 @pytest.mark.parametrize("target", ["noisy", "clean"])
 def test_perfect_prediction_is_near_zero(dcfg, proto, compartments, target):
+    """Check that correct predictions produce almost no physics loss."""
     t1, t2, w = compartments
     nz = TargetNormalizer.from_config(dcfg)
     y_true, X = _truth_tensors(nz, t1, t2, w, proto)
@@ -101,6 +109,7 @@ def test_perfect_prediction_is_near_zero(dcfg, proto, compartments, target):
 
 
 def test_wrong_prediction_separates(dcfg, proto, compartments):
+    """Check that incorrect T1 predictions increase the physics loss."""
     t1, t2, w = compartments
     nz = TargetNormalizer.from_config(dcfg)
     y_true, X = _truth_tensors(nz, t1, t2, w, proto)
@@ -111,6 +120,7 @@ def test_wrong_prediction_separates(dcfg, proto, compartments):
 
 
 def test_gradient_reaches_all_four_channels(dcfg, proto, compartments):
+    """Check that physics loss can update all four prediction channels."""
     t1, t2, w = compartments
     nz = TargetNormalizer.from_config(dcfg)
     y_true, X = _truth_tensors(nz, t1, t2, w, proto)
@@ -134,13 +144,8 @@ def test_absent_queries_do_not_contribute(dcfg, proto, compartments):
     assert torch.allclose(sc.synthesize(yp), sc.synthesize(junk), atol=1e-6)
 
 
-def test_rician_raises(dcfg):
-    lcfg = LossConfig(signal_consistency=True, signal_consistency_type="rician")
-    with pytest.raises(NotImplementedError):
-        SignalConsistencyLoss(dcfg, lcfg)
-
-
 def test_bad_target_raises(dcfg):
+    """Check that an unknown signal target is rejected."""
     lcfg = LossConfig(signal_consistency=True, signal_consistency_target="oracle")
     with pytest.raises(ValueError):
         SignalConsistencyLoss(dcfg, lcfg)
@@ -152,6 +157,7 @@ def test_generated_configs_are_one_change_clean():
     base = yaml.safe_load(open(ROOT / "configs" / "baseline_v2_reproduction.yaml"))
 
     def flat(d, p=""):
+        """Flatten nested config fields into dotted names for comparison."""
         out = {}
         for k, v in d.items():
             kk = f"{p}.{k}" if p else k
@@ -170,7 +176,6 @@ def test_generated_configs_are_one_change_clean():
         assert diffs == expected, (arm, diffs)
         cfg = from_dict(raw)                    # must survive the typed loader
         assert cfg.loss.signal_consistency is True
-        assert cfg.model.pretrain_path is None  # trains from random init, not a warm start
         assert cfg.train.seed == base["train"]["seed"]
 
 
@@ -218,6 +223,7 @@ def test_physics_smoke_training_runs(tmp_path, dcfg, proto):
 # ---------------------------------------------------------------------------
 
 def test_sqrt_mode_is_accepted_and_produces_finite_grad():
+    """Check that square-root weighting gives finite loss and gradients."""
     import torch
     from t1t2.config import LossConfig
     from t1t2.loss import HungarianLoss
@@ -234,6 +240,7 @@ def test_sqrt_mode_is_accepted_and_produces_finite_grad():
 
 
 def test_sqrt_mode_compresses_gradient_ratio_to_sqrt_of_w_ratio():
+    """Check that square-root weights reduce the gap between compartment weights."""
     import math
     w_lo, w_hi = 0.05, 0.75
     assert math.isclose((w_hi ** 0.5) / (w_lo ** 0.5), math.sqrt(w_hi / w_lo))
@@ -241,6 +248,7 @@ def test_sqrt_mode_compresses_gradient_ratio_to_sqrt_of_w_ratio():
 
 
 def test_invalid_weighting_mode_still_raises():
+    """Check that an unknown weighting rule is rejected."""
     import pytest
     from t1t2.config import LossConfig
     from t1t2.loss import HungarianLoss
