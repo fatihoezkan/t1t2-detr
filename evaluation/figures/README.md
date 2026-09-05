@@ -24,6 +24,6 @@ load a checkpoint run inference on the CPU over the 9 999 test voxels named in t
 | `plot_threshold_sweep.py` | `fig_threshold_sweep.png` | `results/threshold_sweep/<run>.json` for 12 runs |
 
 Figure 18 (SNR ladder) comes from `evaluation/snr_ladder.py`; figures 01 to 10, 21 and
-`figures/arms/` come from `notebooks/build_thesis_notebook.py`. Run
+`figures/arms/` are written by `notebooks/thesis.ipynb` itself. Run
 `make_noise_ratio_table.py` before `make_noise_effect_figure.py`; the notebook's last cell
 runs every script in the right order when the checkpoints are present.

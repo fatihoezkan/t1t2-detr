@@ -214,7 +214,11 @@ def tables_stage():
 
 
 def notebook_stage():
-    yield Step("notebook", [PY, "notebooks/build_thesis_notebook.py"],
+    # Executed in place under a real kernel; the notebook's first cell moves to the repository
+    # root itself, and no cell has a time limit because two of them run inference.
+    yield Step("notebook",
+               [PY, "-m", "jupyter", "nbconvert", "--to", "notebook", "--execute", "--inplace",
+                "--ExecutePreprocessor.timeout=-1", "notebooks/thesis.ipynb"],
                [ROOT / "notebooks" / "thesis.ipynb"], [checkpoint(REFERENCE), checkpoint(FINAL)])
 
 

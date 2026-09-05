@@ -58,11 +58,11 @@ t1t2-detr/
 └── slurm/                  a generic cluster job template
 ```
 
-`notebooks/thesis.ipynb` is the place to start reading. It is built and executed by
-`notebooks/build_thesis_notebook.py` and shows, in order, what the generator produced,
-example test voxels under the reference and the final model, and every result table of the
-thesis recomputed from `results/`. Part 3 of it runs without checkpoints; Parts 1 and 2 and
-the scripts under `evaluation/figures/` need them (see [Reproducing the thesis](#reproducing-the-thesis)).
+`notebooks/thesis.ipynb` is the place to start reading. It shows, in order, what the
+generator produced, example test voxels under the reference and the final model, and every
+result table of the thesis recomputed from `results/`. Part 3 of it runs without
+checkpoints; Parts 1 and 2 and the scripts under `evaluation/figures/` need them (see
+[Reproducing the thesis](#reproducing-the-thesis)).
 
 Every run has a config under `configs/` and a directory `results/<name>/` with the config as
 it was trained (`config.yaml`), the training curve (`history.json`), the run summary
@@ -237,10 +237,10 @@ run on a fresh clone.
 
 The thesis figures and tables are regenerated with the scripts under `evaluation/figures/`
 and `evaluation/tables/` (each folder has a README naming the script for every figure and
-table), and the notebook is rebuilt with
+table), and the notebook is re-executed in place with
 
 ```bash
-PYTHONPATH=.:datagen python notebooks/build_thesis_notebook.py     # writes notebooks/thesis.ipynb
+jupyter nbconvert --to notebook --execute --inplace --ExecutePreprocessor.timeout=-1 notebooks/thesis.ipynb
 ```
 
 Both need the checkpoints under `results/<run>/checkpoints/best.pt`, which a training run
@@ -324,8 +324,6 @@ code was reviewed and tested by me, and every reported number was produced by ru
 code on the data described above. No AI tool was used to generate or alter data or results.
 The thesis carries the same statement.
 
-## Citing, credits, licence
+## Credits
 
-[CITATION.cff](CITATION.cff) says how to cite the software and the thesis. Attribution for
-the architecture and the prior work is in [CREDITS.md](CREDITS.md). The code is released
-under the MIT licence, see [LICENSE](LICENSE).
+Attribution for the architecture and the prior work is in [CREDITS.md](CREDITS.md).

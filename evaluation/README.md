@@ -152,7 +152,7 @@ PYTHONPATH=.:datagen python evaluation/figures/<script>.py
 PYTHONPATH=.:datagen python evaluation/tables/<script>.py
 
 # the executed notebook: data figures, paired voxel examples, every results table
-PYTHONPATH=.:datagen python notebooks/build_thesis_notebook.py
+jupyter nbconvert --to notebook --execute --inplace --ExecutePreprocessor.timeout=-1 notebooks/thesis.ipynb
 ```
 
 `notebooks/thesis.ipynb` recomputes every table of this document from `results/` and shows
