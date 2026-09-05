@@ -2,7 +2,7 @@
 
 Each compartment contributes an inversion-recovery factor in T1 times an exponential decay in
 T2, weighted by its signal fraction. t1t2/physics.py holds the training-side implementation of
-the same equation; a test checks that the two agree.
+the same equation; the two must stay in step.
 """
 
 from __future__ import annotations

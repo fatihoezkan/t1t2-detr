@@ -13,7 +13,6 @@ results may be read.
 | `voxel_simulator/noise.py` | signed additive Gaussian noise, drawn as a standardised z and scaled |
 | `voxel_simulator/generate.py` | one family: train, val, test, the fixed-SNR ladder and the manifest |
 | `run_generator.py` | the command-line entry point |
-| `tests/` | 68 tests: `cd datagen && PYTHONPATH=. python -m pytest tests -q` |
 
 ## The forward model
 
@@ -29,8 +28,8 @@ The protocol is 64 points, 8 inversion times by 8 echo times, read from
 regrouped.
 
 The same equation is implemented twice, in `datagen/voxel_simulator/physics.py` for
-generation and in `t1t2/physics.py` for the signal-consistency loss, and a test checks that
-the two agree.
+generation and in `t1t2/physics.py` for the signal-consistency loss; the two must stay in
+step.
 
 ## Noise
 
@@ -101,7 +100,10 @@ than disappearing. The `data_loguniform` arm trains on such a dataset; its resul
 [the experiments page](../configs/README.md).
 
 The mode is recorded in each dataset's `manifest.json` under `physics.sampling`, because
-which error curve can be trusted depends on which sampler produced the data.
+which error curve can be trusted depends on which sampler produced the data. Manifests
+written before the option existed carry no such entry; that includes the shipped
+`t1_3500_t2_500_100k` family, generated with the only sampler there was then, `rejection`.
+Only `t1_loguniform_100k` records the mode explicitly.
 
 ## Weights and counts
 

@@ -71,4 +71,4 @@ notes: |
   noisy arm: the noisy target carries per-voxel noise, and comparing the two says how much of
   the noisy arm's behaviour comes from its target rather than from the physics term itself.
 
-  See docs/physics-loss.md.
+  See t1t2/README.md, section "The signal-consistency loss".

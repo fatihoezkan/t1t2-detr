@@ -67,4 +67,4 @@ notes: |
 
   loss_uniform was the only single-change arm to clear the seed spread, so it was retrained
   at the same three extra seeds as the reference. The headline comparison in
-  docs/experiments.md is therefore four runs against four.
+  configs/README.md is therefore four runs against four.

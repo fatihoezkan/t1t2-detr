@@ -64,5 +64,5 @@ evaluation:
 notes: |
   Reference run. Same configuration as the original baseline, retrained under a new name on
   the current code at seed 20260724, so that every arm is compared against a run produced by
-  exactly the code in this repository. All deltas in docs/experiments.md are measured
+  exactly the code in this repository. All deltas in configs/README.md are measured
   against it. Seed replicates: configs/seeds/baseline_seed<seed>.yaml.

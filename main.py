@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Run the thesis pipeline end to end.
 
-    python main.py                          every stage, in order
-    python main.py evaluate figures         only the named stages
-    python main.py --runs loss_uniform      restrict the per-run stages (train, evaluate)
-    python main.py --force tables           redo steps whose outputs already exist
-    python main.py --dry-run                print the plan and run nothing
+    python main.py                                 every stage, in order
+    python main.py evaluate figures                only the named stages
+    python main.py evaluate --runs loss_uniform    restrict the per-run stages (train, evaluate)
+    python main.py --force tables                  redo the named stages even if their outputs exist
+    python main.py --dry-run                       print the plan and run nothing
 
 Stages, in order: data, train, evaluate, aggregate, figures, tables, notebook. Every step is
 one of the existing scripts, run as a subprocess from the repository root with
@@ -44,6 +44,17 @@ STAGES = ("data", "train", "evaluate", "aggregate", "figures", "tables", "notebo
 REFERENCE = "baseline_v2_reproduction"
 FINAL = "loss_uniform"
 
+# The seed families that evaluation/snr_ladder.py (DEFAULT_FAMILIES) and
+# evaluation/tables/build_review_stats.py (FAMILIES) score; the lists mirror those scripts.
+SNR_RUNS = ["baseline_v2_reproduction", "baseline_seed20260725", "baseline_seed20260726",
+            "baseline_seed20260727", "loss_uniform", "loss_uniform_seed20260725",
+            "loss_uniform_seed20260726", "loss_uniform_seed20260727"]
+REVIEW_RUNS = SNR_RUNS + [f"final_uniform_q6_seed2026072{d}" for d in "4567"]
+# The single-change arms evaluation/tables/build_strict_tables.py writes one table each for.
+STRICT_ARMS = ["loss_uniform", "data_loguniform", "queries_6", "queries_4", "aux_loss",
+               "exist_weight_03", "decoder_2", "decoder_6", "exist_head_shared",
+               "physics_clean", "physics_noisy"]
+
 # Configs that are not runs of their own: smoke is the development config, and
 # final_uniform_q6 is the seed-20260724 run under its family name, carrying the criteria.
 DOC_ONLY = {"smoke", "final_uniform_q6"}
@@ -56,9 +67,6 @@ FAMILIES = {
 }
 SIZES = ["--n-train", "33333", "--n-val", "3333", "--n-test", "3333", "--n-per-snr", "1667",
          "--t1-min", "50", "--t1-max", "3500", "--t2-min", "5", "--t2-max", "500"]
-
-CKPT_HINT = ("no checkpoint; unpack checkpoints_best.zip from the GitHub release (README, "
-             "Trained models) or run `python main.py train` on a GPU node")
 
 
 @dataclass
@@ -82,7 +90,11 @@ def rel(p: Path) -> str:
 
 
 def checkpoint(run: str) -> tuple[Path, str]:
-    return RESULTS / run / "checkpoints" / "best.pt", CKPT_HINT
+    # The shipped results/<run>/summary.json makes the train step count as done, so a retrain
+    # has to be forced.
+    return (RESULTS / run / "checkpoints" / "best.pt",
+            "no checkpoint; unpack checkpoints_best.zip from the GitHub release (README, Trained "
+            f"models) or retrain with `python main.py --force train --runs {run}` on a GPU node")
 
 
 def configs() -> dict[str, Path]:
@@ -155,12 +167,22 @@ def aggregate_stage(runs: list[str]):
                [RESULTS / "paired_tests.json"], dumps)
     yield Step("compare-experiments",
                [PY, "evaluation/compare_experiments.py", "--all", "--quiet"],
-               [RESULTS / "_comparison" / "comparison.md"])
+               [RESULTS / "_comparison" / f for f in ("comparison.md", "comparison_metrics.csv",
+                                                      "comparison_arms.csv")])
+    evaluated = "run `python main.py evaluate` first"
     yield Step("snr-ladder", [PY, "evaluation/snr_ladder.py"],
                [RESULTS / "snr_ladder" / f for f in ("summary.json", "snr_ladder.png",
-                                                     "snr_ladder.tex")])
+                                                     "snr_ladder.tex")],
+               [checkpoint(r) for r in SNR_RUNS]
+               + [(RESULTS / "threshold_val" / f"{r}.json", evaluated) for r in SNR_RUNS])
+    # The review statistics cache every run's raw query table next to them; the error
+    # distribution figure reads those caches, so they count as outputs here. A checkpoint is
+    # needed only for a run whose cache is not there yet.
+    caches = {r: RESULTS / f"_review_cache_{r}.npz" for r in REVIEW_RUNS}
     yield Step("review-stats", [PY, "evaluation/tables/build_review_stats.py"],
-               [RESULTS / "review_stats.json"])
+               [RESULTS / "review_stats.json", *caches.values()],
+               [checkpoint(r) for r, c in caches.items() if not c.exists()]
+               + [(RESULTS / "threshold_val" / f"{r}.json", evaluated) for r in REVIEW_RUNS])
     yield Step("noise-ratio-table", [PY, "evaluation/figures/make_noise_ratio_table.py"],
                [RESULTS / "compartment_noise_ratio_test.parquet"],
                [(nd / f"{r}.json", "run `python main.py evaluate` first")
@@ -189,7 +211,9 @@ def figures_stage():
         (["make_error_distribution.py"],
          [FIGURES / "19_error_distribution.png", RESULTS / "error_distribution_summary.json"],
          cache),
-        (["make_noise_effect_figure.py"], [FIGURES / "20_noise_small_compartments.png"], ratio),
+        (["make_noise_effect_figure.py"],
+         [FIGURES / "20_noise_small_compartments.png", RESULTS / "separability_k2_test.parquet"],
+         ratio),
         (["plot_threshold_sweep.py"], [FIGURES / "fig_threshold_sweep.png"], []),
     ]
     for args, outputs, needs in plan:
@@ -201,7 +225,7 @@ def tables_stage():
     # In evaluation/tables/README.md order; the 2D/3D table, the review statistics and the
     # runs README are produced by the evaluate and aggregate stages.
     plan = [
-        ("build_strict_tables.py", ["tab_matrix.tex"]),
+        ("build_strict_tables.py", ["tab_matrix.tex"] + [f"arms/{r}.tex" for r in STRICT_ARMS]),
         ("build_baseline_tables.py", ["tab_baseline_perK.tex", "tab_seed_spread.tex"]),
         ("build_progression_table.py", ["tab_progression.tex"]),
         ("build_final_model_table.py", ["tab_final_model.tex"]),
@@ -253,6 +277,7 @@ def run_steps(steps: list[Step], force: bool, dry: bool) -> None:
 
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser(
+        usage="main.py [STAGE ...] [--runs RUN [RUN ...]] [--force] [--dry-run]",
         description="Run the thesis pipeline end to end, or the named stages of it.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=f"stages, in order: {', '.join(STAGES)}",
@@ -267,6 +292,11 @@ def main(argv=None) -> None:
     bad = sorted(set(a.stages) - set(STAGES))
     if bad:
         ap.error(f"unknown stage(s) {bad}; choose from {', '.join(STAGES)}")
+    if set(a.runs or []) & set(STAGES):
+        ap.error("stage names go before --runs, e.g. `python main.py evaluate --runs loss_uniform`")
+    if a.force and not a.stages:
+        ap.error("--force with no stage would regenerate both dataset families and retrain all "
+                 "26 runs; name the stages to redo, e.g. `python main.py --force figures tables`")
     runs = a.runs or list(CONFIGS)
     bad = sorted(set(runs) - set(CONFIGS))
     if bad:

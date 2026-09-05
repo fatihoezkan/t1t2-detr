@@ -1,6 +1,6 @@
 # Credits
 
-This repository is, T1-T2-native implementation written for the bachelor's
+This repository is a T1-T2-native implementation written for the bachelor's
 thesis *Detection Transformer for Microstructure Quantification from T1-T2 Correlation MRI*
 (Fatih Özkan; advisor Sebastian Endt, Technische Hochschule Ingolstadt).
 
@@ -38,9 +38,9 @@ exactly as stored.
 - A config-driven experiment framework in which a run is fully described by its YAML file.
   This is what makes the one-change experiment matrix possible.
 - Log-min-max target normalisation for the sigmoid heads, which puts T1 and T2 on the same
-  footing and lets every loss weight sit at 1.0.
+  footing and lets the three regression weights sit at 1.0; the existence term is weighted 0.1.
 - The forward model implemented twice, in numpy for the generator and in torch for the
-  signal-consistency loss, with a parity test that keeps them in agreement.
+  signal-consistency loss; the two must stay in step.
 - The synthetic data generator: fixed-count families, reproducible split streams keyed by
   SeedSequence, the paired fixed-SNR ladder, and a manifest per dataset.
 - Evaluation with CSF stratified out. The longest echo time is 150 ms, so the T2 of a

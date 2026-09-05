@@ -92,9 +92,3 @@ result about this problem at this protocol, not about physics-informed losses in
 PYTHONPATH=.:datagen python -m t1t2.experiment --config configs/physics_noisy.yaml
 PYTHONPATH=.:datagen python -m t1t2.experiment --config configs/physics_clean.yaml
 ```
-
-The checks that were run before those arms were submitted are kept as tests in
-`tests/test_physics_loss.py`: the denormalisation and signal-normalisation round trips
-against the dataset's own transforms, agreement between the clean target and the generator,
-a near-zero loss when the prediction is exactly right, a clear separation when it is wrong,
-gradient flow into all four output channels, and gated-off queries contributing nothing.

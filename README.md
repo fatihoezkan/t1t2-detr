@@ -41,7 +41,6 @@ t1t2-detr/
 │   ├── voxel_simulator/      forward model, sampler, noise, dataset writer
 │   ├── data/ti_te_dict.mat   the 8 x 8 acquisition protocol, used exactly as stored
 │   ├── run_generator.py      command-line entry point
-│   └── tests/                68 tests
 ├── t1t2/                   model, loss, training, evaluation
 ├── evaluation/             scripts that score finished runs and compare them
 ├── configs/                one YAML per trained run
@@ -54,7 +53,6 @@ t1t2-detr/
 ├── evaluation/tables/      the scripts that write the thesis's LaTeX tables
 ├── figures/, tables/       their outputs, as used in the thesis
 ├── notebooks/              thesis.ipynb, the executed notebook that walks through data, examples and results
-├── tests/                  59 tests for the t1t2 package
 └── slurm/                  a generic cluster job template
 ```
 
@@ -150,17 +148,14 @@ Torch is not in `requirements.txt` so that pip cannot replace a working CUDA bui
 CPU-only one. `numpy` is pinned exactly because the generator's random streams are only
 reproducible under the version that produced the data.
 
-Run the tests. The first run generates a small development dataset under `data/dev/`:
+To check the installation, generate a small development dataset under `data/dev/` (a few
+seconds) and train `configs/smoke.yaml` on it: a quarter-size model for three epochs, which
+exercises the whole path from config to metrics. Its numbers mean nothing.
 
 ```bash
-PYTHONPATH=.:datagen python -m pytest tests/ -q          # 59 passed
-cd datagen && PYTHONPATH=. python -m pytest tests/ -q    # 68 passed
-```
-
-`configs/smoke.yaml` trains a quarter-size model for three epochs on the development data
-and exercises the whole path from config to metrics. Its numbers mean nothing.
-
-```bash
+for n in 1 2 3; do
+  PYTHONPATH=.:datagen python datagen/run_generator.py --n-comp $n --smoke --out-dir data/dev/n$n
+done
 PYTHONPATH=.:datagen python -m t1t2.experiment --config configs/smoke.yaml --no-resume
 ```
 
@@ -240,8 +235,12 @@ PYTHONPATH=.:datagen python evaluation/paired_tests.py
 PYTHONPATH=.:datagen python evaluation/snr_ladder.py
 ```
 
-The first two need a checkpoint. The others read what is already in `results/` and can be
-run on a fresh clone.
+`run_nd_evaluation.py` and `calibrate_threshold.py` need a checkpoint.
+`summarize_nd_evaluation.py` and `paired_tests.py` read the per-voxel ND dumps that
+`run_nd_evaluation.py` writes, which are not shipped. `snr_ladder.py` runs inference for the
+eight seed runs of the reference and the final model, so it needs their checkpoints and the
+generated data; with `--replot` it redraws from the stored `results/snr_ladder/summary.json`.
+Only `compare_experiments.py --all` runs on a fresh clone as it is.
 
 The thesis figures and tables are regenerated with the scripts under `evaluation/figures/`
 and `evaluation/tables/` (each folder has a README naming the script for every figure and
@@ -251,8 +250,12 @@ table), and the notebook is re-executed in place with
 jupyter nbconvert --to notebook --execute --inplace --ExecutePreprocessor.timeout=-1 notebooks/thesis.ipynb
 ```
 
-Both need the checkpoints under `results/<run>/checkpoints/best.pt`, which a training run
-writes and the repository does not carry.
+The figure scripts need `results/<run>/checkpoints/best.pt` for `baseline_v2_reproduction`
+and `loss_uniform`, both in the repository (see Trained models), except
+`make_error_distribution.py`, which reads the `results/_review_cache_<run>.npz` files that
+`build_review_stats.py` writes from the twelve checkpoints of the three four-seed families.
+The table scripts read only `results/`, apart from `build_2d_3d_tables.py` and
+`build_review_stats.py`, which need the checkpoints of the runs they score.
 
 ## The experiments
 
@@ -307,7 +310,8 @@ except `queries_6` and `queries_4`, whose order swaps.
 Three different thresholds live in `results/`: the calibrated one in
 `results/threshold_val/<run>.json` (`val_theta`, 0.65 to 0.95), the parameter-error
 pipeline's `selected_threshold` in each run's `threshold_calibration.json` (0.22 to 0.77),
-and the fixed 0.75 of the ND tables. They are different quantities.
+and the ND evaluation's F1-calibrated `existence_threshold` in
+`results/nd_evaluation/<run>.json` (0.75 for every run but one). They are different quantities.
 
 The fields `t1_mae_ms`, `t2_mae_ms` and `w_mae` in `metrics_detr.json` are medians. The
 finished runs cannot be renamed, so the aliases `t1_abs_median_ms`, `t2_abs_median_ms` and

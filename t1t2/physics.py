@@ -1,7 +1,7 @@
 """Forward signal model: compartments in, 64-point signal out.
 
 The inversion-recovery multi-echo equation of the data generator, restated on the training
-side. Two implementations: numpy, checked against the generator by a parity test, and a
+side. Two implementations: numpy, kept in step with the generator, and a
 differentiable torch version for the signal-consistency loss.
 
     S_p = M0 * sum_c  w_c * (1 - 2 exp(-TI_p / T1_c) + exp(-TR / T1_c)) * exp(-TE_p / T2_c)

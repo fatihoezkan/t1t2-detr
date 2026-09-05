@@ -68,7 +68,8 @@ class ModelConfig:
 class LossConfig:
     """Loss term weights and the optional signal-consistency term.
 
-    With log-normalised targets the four base weights can all sit near 1.0.
+    With log-normalised targets the three regression weights can all sit at 1.0; the
+    existence term is down-weighted to 0.1.
     """
 
     t1_weight: float = 1.0

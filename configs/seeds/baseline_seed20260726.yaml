@@ -68,4 +68,4 @@ notes: |
   Every arm was first run at seed 20260724, so a delta between two such runs has no error
   bar. The reference was therefore retrained at three more seeds, fixed before any of them
   was run, and the spread over the four runs is the ruler every arm has to clear
-  (docs/experiments.md). Reported as a range with n = 4, not as a confidence interval.
+  (configs/README.md). Reported as a range with n = 4, not as a confidence interval.

@@ -154,7 +154,6 @@ def sample_random_compartment(
     exactly two uniforms per compartment. The log-T1 marginal is log-uniform by construction, but
     the log-T2 marginal piles up at small T2 because a small T1 caps T2 (at T1 = 60 ms, log T2
     is spread over [log 5, log 60]). The coverage skew moves from T1 to T2; it does not go away.
-    The analytic T2 marginal is in the tests.
 
     Both marginals cannot be log-uniform at once: large T2 is reachable only from large T1, so a
     flat log-T2 marginal needs extra mass at large T1, which breaks a flat log-T1 marginal.

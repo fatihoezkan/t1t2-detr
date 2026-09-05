@@ -73,4 +73,4 @@ notes: |
   term needs no ground truth and would carry over to real scans unchanged. The noise is
   zero-mean, so the gradient is unbiased and the loss floor is the per-voxel noise power.
 
-  See docs/physics-loss.md.
+  See t1t2/README.md, section "The signal-consistency loss".

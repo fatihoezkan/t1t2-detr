@@ -64,9 +64,9 @@ evaluation:
   threshold_max: 0.95
   threshold_steps: 19
 notes: |
-  A small, fast configuration for the development dataset the test suite generates. It
-  exists so the pipeline can be run end to end right after cloning, without generating a
-  full dataset first.
+  A small, fast configuration for the development dataset under data/dev/, generated with
+  run_generator.py --smoke (see the README). It exists so the pipeline can be run end to end
+  right after cloning, without generating a full dataset first.
 
   It is not a scientific configuration: the model is a quarter of the reported size and it
   trains for three epochs on a few thousand voxels. Do not quote numbers from it.

@@ -19,10 +19,11 @@ is simulated.
 Each family has one folder per compartment count, `n1`, `n2` and `n3`, holding the `train`,
 `val` and `test` splits and five fixed-SNR test sets `test_snr{20,40,60,100,150}`; SNR 20 is
 below the training range of 30 to 150 and is an extrapolation test. `manifest.json` records
-the seeds, sizes, ranges, sampling mode, protocol checksum, git commit and library versions
-of the files that were actually used. The main family regenerates exactly under the pinned
+the seeds, sizes, ranges, protocol checksum, git commit and library versions of the files
+that were actually used; the sampling mode appears only in the log-uniform family's
+manifests, the main family predates that field and used `rejection`. The main family regenerates exactly under the pinned
 numpy; the log-uniform family was generated under a newer numpy and regenerates in
 distribution but not voxel for voxel.
 
-`dev/` is the small development dataset the tests generate on their first run. It is not
-versioned; delete it to regenerate it.
+`dev/` is the small development dataset for `configs/smoke.yaml`, generated with the
+`--smoke` command in the [root README](../README.md#setup). It is not versioned.

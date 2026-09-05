@@ -51,7 +51,8 @@ Strict voxel accuracy is the fraction of voxels where the model reported the rig
 of compartments and every one of them fell inside the ND tolerance. It is harsher than
 either half alone, and it is what an application would care about.
 
-Precision, recall, F1 and the mean errors are reported at a fixed existence threshold. The
+Precision, recall, F1 and the mean errors are reported at one existence threshold per run,
+calibrated on validation by F1 (see the table below; it is 0.75 for all but one run). The
 mean absolute errors are over true positives only, which is safe here because every
 true-positive error is bounded by the ND gate and gross misses are counted as false
 positives rather than inflating the average. The true-positive mean error improves as
@@ -86,7 +87,7 @@ They are easy to confuse and mean different things.
 |---|---|---|---|
 | `results/threshold_val/<run>.json` | `val_theta` | 0.65 to 0.95 | swept on validation for strict accuracy; the one the thesis reports |
 | `results/<run>/threshold_calibration.json` | `selected_threshold` | 0.22 to 0.77 | the parameter-error pipeline's threshold, a different quantity |
-| `results/nd_evaluation/<run>.json` | `existence_threshold` | 0.75 | fixed, used for the ND precision/recall columns |
+| `results/nd_evaluation/<run>.json` | `existence_threshold` | 0.65 to 0.75 | F1-calibrated on validation over the grid 0.25 to 0.75 and applied unchanged to test; 25 runs sit at the 0.75 edge of the grid, one at 0.65. Used for the ND precision, recall and F1 columns |
 
 ## How large a difference has to be
 

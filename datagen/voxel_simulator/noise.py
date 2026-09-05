@@ -34,5 +34,5 @@ def add_gaussian_noise(signal_clean, snr, rng, sigma=None):
     return signal_noisy, sigma
 
 
-# Name used by generate.py and the tests.
+# Name used by generate.py.
 add_noise = add_gaussian_noise

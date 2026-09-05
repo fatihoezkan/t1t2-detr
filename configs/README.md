@@ -215,7 +215,8 @@ PYTHONPATH=.:datagen python evaluation/run_nd_evaluation.py results/loss_uniform
 PYTHONPATH=.:datagen python evaluation/calibrate_threshold.py loss_uniform
 ```
 
-`python main.py train evaluate --runs loss_uniform` does the same from the repository root.
+`python main.py --force train evaluate --runs loss_uniform` does the same from the repository
+root; `--force` because the shipped `results/loss_uniform/` already counts as a finished run.
 The configs reference dataset paths under `data/`. Generate the families first with the
 commands in the [root README](../README.md#data) or `python main.py data`, or edit the paths
 to point at your own.
