@@ -159,7 +159,7 @@ def train(cfg: ExperimentConfig, results_dir=None, max_epochs=None, resume=True,
     """Train from a config and return (history, results_dir, best model).
 
     max_epochs overrides the config's epoch count and limit caps the voxels loaded; both are
-    for smoke runs. `log` is injectable so tests can silence the output.
+    for smoke runs. `log` is injectable so a caller can silence the output.
     """
     # seed, device, results directory
     set_seed(cfg.train.seed)

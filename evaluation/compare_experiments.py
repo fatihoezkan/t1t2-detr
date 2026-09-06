@@ -18,6 +18,8 @@ import sys
 from dataclasses import asdict
 from pathlib import Path
 
+from t1t2.config import load_config
+
 # The reference run. Hard-coded so it cannot be moved by a flag. It is baseline_v2_reproduction
 # rather than the original baseline because its config ships in configs/ and can be re-run.
 BASELINE_RUN = "baseline_v2_reproduction"
@@ -135,7 +137,7 @@ def load_run(run_dir: Path) -> dict:
     if not summary_path.exists():
         raise FileNotFoundError(
             f"{run_dir}: no summary.json. Either the run has not finished, or evaluation "
-            f"failed after training. Check the SLURM log before treating this as a result."
+            f"failed after training. Check the training log before treating this as a result."
         )
     with open(summary_path) as f:
         summary = json.load(f)
@@ -144,9 +146,6 @@ def load_run(run_dir: Path) -> dict:
     config_path = run_dir / "config.yaml"
     if not config_path.exists():
         raise FileNotFoundError(f"{run_dir}: no config.yaml, so its config cannot be diffed.")
-
-    sys.path.insert(0, str(REPO_ROOT))
-    from t1t2.config import load_config
 
     cfg = load_config(config_path)
     return {

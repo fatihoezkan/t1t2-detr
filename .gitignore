@@ -13,6 +13,8 @@
 !/results/baseline_v2_reproduction/checkpoints/best.pt
 /results/**/figures/
 /checkpoints_best.zip
+# The per-voxel ND dumps are regenerated; the two aggregated tables stay. tables_2d_3d.json is
+# a frozen output, the script that built it is no longer in the repository.
 /results/nd_evaluation/*.json
 !/results/nd_evaluation/paired_deltas.json
 !/results/nd_evaluation/tables_2d_3d.json
@@ -20,6 +22,7 @@
 /results/smoke/
 
 __pycache__/
+.pytest_cache/
 *.py[cod]
 .venv/
 venv/

@@ -22,7 +22,6 @@ scripts once more by itself, so the notebook stage repeats the work of the figur
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import subprocess
 import sys

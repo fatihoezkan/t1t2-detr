@@ -6,8 +6,6 @@ results/<run>/ (config, summary.json, best.pt) and the test parquets.
 Writes figures/17_missed_scatter.png.
 Usage: PYTHONPATH=.:datagen python3 evaluation/figures/make_missed_scatter.py
 """
-import os
-import sys
 from pathlib import Path
 
 import matplotlib as mpl
@@ -18,8 +16,6 @@ import matplotlib.patheffects as pe  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT))
-os.chdir(ROOT)
 
 from t1t2 import nd_metrics as ndm  # noqa: E402
 from t1t2.runs import load_run  # noqa: E402

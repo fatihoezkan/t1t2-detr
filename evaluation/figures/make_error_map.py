@@ -7,8 +7,6 @@ discussion predicts the T2-error map should degrade above it. Reads results/<run
 summary.json, best.pt) and the test parquets. Writes figures/13_error_map.png.
 Usage: PYTHONPATH=.:datagen python3 evaluation/figures/make_error_map.py
 """
-import os
-import sys
 from pathlib import Path
 
 import matplotlib as mpl
@@ -20,8 +18,6 @@ import matplotlib.patheffects as pe  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT))
-os.chdir(ROOT)
 
 from t1t2 import nd_metrics as ndm  # noqa: E402
 from t1t2.eval import _match  # noqa: E402

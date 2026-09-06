@@ -155,7 +155,7 @@ class VoxelDataset(Dataset):
 
     Everything is loaded up front; the splits fit in RAM and training is faster for it.
     A list of paths is concatenated, which is how the per-count files become one balanced
-    dataset. `limit` caps the number of voxels for tests and smoke runs.
+    dataset. `limit` caps the number of voxels for smoke runs.
     """
 
     def __init__(self, path, cfg, normalizer: TargetNormalizer | None = None, limit: int | None = None):

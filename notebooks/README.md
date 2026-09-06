@@ -1,25 +1,19 @@
 # The thesis notebook
 
-`thesis.ipynb` is the executed notebook that walks through the data, paired voxel examples
-under the reference and the final model, and every results table of the thesis recomputed
-from `results/`. It is the place to start reading the repository, and it is the only source:
-edit it in Jupyter and re-execute it in place with
+`thesis.ipynb` walks through the data (Part 1), paired voxel examples under the reference and
+the final model (Part 2) and every results table of the thesis recomputed from `results/`
+(Part 3). Part 3 works on a fresh clone. Parts 1 and 2 run inference and need
+`results/<run>/checkpoints/best.pt`; the per-arm galleries of section 2.9 need every
+checkpoint from the release zip (root README, Checkpoints). Inference results are cached
+under `.cache_visuals/`; delete it to force a rerun.
+
+Re-execute it in place with
 
 ```bash
 jupyter nbconvert --to notebook --execute --inplace --ExecutePreprocessor.timeout=-1 notebooks/thesis.ipynb
 ```
 
-or `python main.py --force notebook` from the repository root. The first cell moves to the
-repository root by itself, so the command works from either directory.
-
-Parts 1 and 2 run inference. The paired examples need `results/<run>/checkpoints/best.pt`
-for `baseline_v2_reproduction` and `loss_uniform`, both in the repository; the per-arm
-galleries of section 2.9, which write `figures/arms/`, need the checkpoint of every arm and
-combined model in their list, so unpack `checkpoints_best.zip` from the release first (root
-README, Trained models). The raw query tables are cached under `.cache_visuals/` after the
-first run; delete it to force a re-run. Part 3 reads only `results/` and works on a fresh
-clone.
-
-Figures 01 to 10 and 21 of the thesis and `figures/arms/` are written by the notebook itself.
-Its last cell reruns `evaluation/snr_ladder.py` and every script under `evaluation/figures/`
-when the checkpoints are present, so an execution also refreshes `figures/`.
+or `python main.py --force notebook`. The first cell moves to the repository root by itself.
+The notebook writes figures 01 to 10, 21 and `figures/arms/` itself, and its last cell reruns
+`evaluation/snr_ladder.py` and every script under `evaluation/figures/` when the checkpoints
+are present.

@@ -11,7 +11,6 @@ the edge of the grid. Writes results/threshold_val/<run>.json with the validatio
 import json, sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 import threshold_sweep as ts               # shares GRID and score() with the sweep
 
 from t1t2.nd_metrics import TAU_BASE, dataset_records

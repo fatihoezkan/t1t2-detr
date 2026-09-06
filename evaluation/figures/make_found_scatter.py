@@ -7,7 +7,6 @@ threshold): figures/14_found_missed.png. With --map7 the existence threshold is 
 results/<run>/ (config, summary.json, best.pt) and the test parquets.
 Usage: PYTHONPATH=.:datagen python3 evaluation/figures/make_found_scatter.py [--map7]
 """
-import os
 import sys
 from pathlib import Path
 
@@ -19,8 +18,6 @@ import matplotlib.patheffects as pe  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT))
-os.chdir(ROOT)
 
 from t1t2 import nd_metrics as ndm  # noqa: E402
 from t1t2.runs import load_run  # noqa: E402

@@ -8,8 +8,6 @@ metrics_detr.json} and the test parquets. Writes figures/19_error_distribution.p
 results/error_distribution_summary.json. Usage: PYTHONPATH=.:datagen python3 evaluation/figures/make_error_distribution.py
 """
 import json
-import os
-import sys
 from pathlib import Path
 
 import matplotlib as mpl
@@ -20,8 +18,6 @@ mpl.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT))
-os.chdir(ROOT)
 
 from t1t2.config import load_config  # noqa: E402
 from t1t2.eval import _match  # noqa: E402

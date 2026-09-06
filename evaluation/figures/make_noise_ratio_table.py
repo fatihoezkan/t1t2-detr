@@ -8,22 +8,18 @@ make_noise_effect_figure.py. Needs results/nd_evaluation/<run>.json for both run
 Usage: PYTHONPATH=.:datagen python3 evaluation/figures/make_noise_ratio_table.py
 """
 import json
-import os
-import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT))
-os.chdir(ROOT)
 
 from t1t2.config import load_config
 from t1t2.physics import forward_numpy, load_protocol
 
 RUNS = {"found_reference": "baseline_v2_reproduction", "found_final": "loss_uniform"}
-OUT = Path("results/compartment_noise_ratio_test.parquet")
+OUT = ROOT / "results" / "compartment_noise_ratio_test.parquet"
 
 # test set and protocol
 cfg = load_config(f"configs/{RUNS['found_reference']}.yaml")
@@ -35,8 +31,8 @@ proto = load_protocol()
 # threshold was assigned to it.
 found = {}
 for col, run in RUNS.items():
-    theta = json.load(open(f"results/{run}/threshold_calibration.json"))["selected_threshold"]
-    records = json.load(open(f"results/nd_evaluation/{run}.json"))["_records_tau7"]
+    theta = json.load(open(ROOT / "results" / run / "threshold_calibration.json"))["selected_threshold"]
+    records = json.load(open(ROOT / "results" / "nd_evaluation" / f"{run}.json"))["_records_tau7"]
     found[col] = [{r["gt"] for r in recs if r["gt"] is not None and r["prob"] >= theta}
                   for recs in records]
 

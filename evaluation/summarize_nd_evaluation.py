@@ -16,8 +16,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from t1t2.nd_metrics import bootstrap_map_ci  # noqa: E402
+from t1t2.nd_metrics import bootstrap_map_ci
 
 BASELINE = "baseline_v2_reproduction"
 

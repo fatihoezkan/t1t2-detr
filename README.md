@@ -4,151 +4,50 @@ Code and results for the bachelor's thesis *Detection Transformer for Microstruc
 Quantification from T1-T2 Correlation MRI* (Fatih Özkan, Technische Hochschule Ingolstadt,
 2026, supervised by Sebastian Endt in the group of Prof. Dr. Marion Menzel).
 
-The repository contains the synthetic data generator, the model, the training and evaluation
-code, one config file per trained run, and the metrics of every run the thesis reports. The
-numbers in the thesis tables can be traced back to a file under `results/`.
-
-## The problem
-
-An MRI voxel is about a millimetre across and holds water in several microscopic
-environments at once (myelin water, intra- and extracellular water, cerebrospinal fluid).
-Each environment, or compartment, relaxes with its own T1 and T2. A T1-T2 correlation scan
-samples the voxel at 8 inversion times x 8 echo times and records 64 numbers. Going from
-compartments to those 64 numbers is a closed-form equation. Going back is ill-posed: very
-different compartment sets produce almost the same signal, and the classical solver
-(non-negative least squares on a T1-T2 dictionary) is unstable under noise.
-
-The thesis treats the backward direction as object detection. A compartment is an object in
-(T1, T2) space. A Detection Transformer (DETR) reads the 64 measurements and returns a fixed
-number of candidate compartments, each with a T1, a T2, a signal fraction and an existence
-score. During training the candidates are matched to the true compartments with the
-Hungarian algorithm before the loss is computed, so the order of the candidates carries no
-meaning. At test time the existence scores decide how many compartments are reported.
-
-The architecture is adopted from DETR (Carion et al. 2020), from the diffusion-correlation
-DETRs of Johannes Schlund and Marcus Wirth, and from Sebastian Endt's T1-T2 implementation.
-What is new here is the T1-T2 formulation, the data pipeline, the config-driven experiment
-matrix, the evaluation protocol with a measured seed spread as its ruler, and the finding
-that the loss weighting, not the protocol, accounts for much of the difficulty with small
-compartments. [CREDITS.md](CREDITS.md) separates inherited from original work in detail.
+An MRI voxel holds water in several compartments, each relaxing with its own T1 and T2. A
+T1-T2 correlation scan records 64 numbers per voxel (8 inversion times x 8 echo times), and
+recovering the compartments from them is ill-posed. The thesis treats it as object detection:
+a Detection Transformer (DETR) reads the 64 measurements and returns a fixed set of candidate
+compartments, each with T1, T2, signal fraction and an existence score, matched to the truth
+with the Hungarian algorithm during training. The architecture follows DETR (Carion et al.
+2020) and the diffusion-correlation DETRs of Schlund and Wirth; [CREDITS.md](CREDITS.md)
+separates inherited from original work.
 
 ## Layout
 
 ```
-t1t2-detr/
-├── main.py                 the pipeline end to end: data, train, evaluate, aggregate, figures, notebook
-├── datagen/                synthetic data
-│   ├── voxel_simulator/      forward model, sampler, noise, dataset writer
-│   ├── data/ti_te_dict.mat   the 8 x 8 acquisition protocol, used exactly as stored
-│   ├── run_generator.py      command-line entry point
-├── t1t2/                   model, loss, training, evaluation
-├── evaluation/             scripts that score finished runs and compare them
-├── configs/                one YAML per trained run
-│   ├── *.yaml                the reference run, the eleven single-change arms, a smoke config
-│   ├── combined/             the five models that change more than one thing at once
-│   └── seeds/                the ten seed replicates
-├── results/                metrics of every run the thesis reports (see below)
-├── data/                   manifests of the two dataset families (parquet files not included)
-├── evaluation/figures/     one script per thesis figure
-├── figures/                their outputs, as used in the thesis
-└── notebooks/              thesis.ipynb, the executed notebook that walks through data, examples and results
+main.py                 runs the pipeline: data, train, evaluate, aggregate, figures, notebook
+datagen/                synthetic data generator: forward model, sampler, noise
+t1t2/                   model, loss, training loop, scoring
+evaluation/             scripts that score finished runs and compare them
+evaluation/figures/     one script per thesis figure
+configs/                one YAML per trained run, and the experiment matrix with its results
+results/                config, training curve and metrics of every run; two checkpoints
+data/                   dataset manifests (the parquet files are regenerated)
+figures/                the thesis figures
+notebooks/thesis.ipynb  executed walk-through: data, example voxels, every results table
 ```
 
-`notebooks/thesis.ipynb` is the place to start reading. It shows, in order, what the
-generator produced, example test voxels under the reference and the final model, and every
-result table of the thesis recomputed from `results/`. Part 3 of it runs without
-checkpoints; Parts 1 and 2 and the scripts under `evaluation/figures/` need them (see
-[Reproducing the thesis](#reproducing-the-thesis)).
-
-Every run has a config under `configs/` and a directory `results/<name>/` with the config as
-it was trained (`config.yaml`), the training curve (`history.json`), the run summary
-(`summary.json`), the test metrics (`metrics_detr.json`, `parameter_recovery_detr.json`,
-`metrics_snr_ladder.json`) and the threshold calibration. `results/threshold_val/` holds the
-validation-calibrated existence threshold of each run and `results/nd_evaluation/` the
-Normalised Distance tables. [results/README.md](results/README.md) lists every run with its
-seed, size, epochs and wall time, and states the training procedure they share. Per-run
-figures and the per-voxel ND dumps (about 14 MB per run) are regenerated by the commands
-below.
-
-## Trained models
-
-The checkpoints of the two models the thesis is about are in the repository:
-`results/loss_uniform/checkpoints/best.pt` (the final model) and
-`results/baseline_v2_reproduction/checkpoints/best.pt` (the reference), 18 MB each. The
-other 24 runs (the arms, the seed replicates and the combined models, 361 MB together) are
-attached to the GitHub release as `checkpoints_best.zip`. Unpacked at the repository root,
-the files land in `results/<run>/checkpoints/best.pt`, where every script and the notebook
-look for them:
-
-```bash
-curl -L -o checkpoints_best.zip \
-    https://github.com/fatihoezkan/t1t2-detr/releases/download/v1.1.0/checkpoints_best.zip
-unzip -o checkpoints_best.zip
-# or, with the GitHub CLI:  gh release download v1.1.0 -p checkpoints_best.zip && unzip -o checkpoints_best.zip
-```
-
-A checkpoint holds the model's state dict plus the epoch it comes from and its validation
-loss. [results/README.md](results/README.md) shows how to load one.
-
-## Pipeline
-
-```
-compartments (T1, T2, w) --forward model--> 64-point signal --noise--> parquet rows   datagen/
-                                                                          |
-                                       normalise targets, pad, batch      |          t1t2/data.py
-                                                                          v
-   encoder -> learned queries -> transformer decoder -> heads -> (T1, T2, w, exist) x Q   t1t2/model.py
-                                                                          |
-                  Hungarian matching + regression + existence loss        |          t1t2/loss.py
-                  optional: resynthesise the signal and penalise mismatch |          t1t2/physics_loss.py
-                                                                          v
-               train, checkpoint, resume, write results/<name>/                      t1t2/train.py, experiment.py
-                                                                          |
-               threshold, match to truth, score, compare runs             v          t1t2/eval.py, nd_metrics.py,
-                                                                                     t1t2/runs.py, evaluation/
-```
-
-Training, from the YAML config to a scored run:
+Start with `notebooks/thesis.ipynb`; its Part 3 runs on a fresh clone. Every folder has a
+short README. The experiments and their numbers are in [configs/README.md](configs/README.md),
+the evaluation protocol in [evaluation/README.md](evaluation/README.md).
 
 ![Training: from a YAML file to a scored run](docs/img/training.png)
 
-Inference, from one voxel to its compartments:
-
 ![Inference: from one voxel to its compartments](docs/img/inference.png)
-
-| module | what it does |
-|---|---|
-| `datagen/voxel_simulator` | random compartments with T1 > T2, the inversion-recovery multi-echo forward model, signed Gaussian noise, seeded splits, a manifest per family |
-| `t1t2/data.py` | parquet to tensors; log-min-max normalisation of T1/T2 for the sigmoid heads |
-| `t1t2/model.py` | MLP encoder, learned queries, transformer decoder, per-query heads; two existence-head wirings |
-| `t1t2/loss.py` | Hungarian matching, regression on matched pairs, existence BCE; the `t1_t2_weighting` switch |
-| `t1t2/physics_loss.py` | the signal-consistency term, soft-gated by the existence scores |
-| `t1t2/train.py`, `experiment.py` | early stopping on validation parameter loss, resumable checkpoints, config in, `results/<name>/` out |
-| `t1t2/eval.py` | existence threshold (chosen on validation), matching to the truth, per-count metrics, physics checks |
-| `t1t2/runs.py` | loads a finished `results/<name>/` (config, best checkpoint, normaliser) for every evaluation script |
-| `t1t2/nd_metrics.py` | the Normalised Distance criterion, strict voxel accuracy, mAP |
-| `evaluation/` | threshold calibration and sweeps, ND evaluation and its summary table, paired tests, the one-change comparison, the SNR ladder |
-
-The docstring at the top of each file says what it does and why the non-obvious choices were
-made. Every folder has a README with the longer explanation: the data generator and its
-sampling constraint in [datagen/](datagen/README.md), the package and the signal-consistency
-loss in [t1t2/](t1t2/README.md), the experiment matrix and its numbers in
-[configs/](configs/README.md), and the evaluation protocol in [evaluation/](evaluation/README.md).
 
 ## Setup
 
 ```bash
 pip install -r requirements.txt
-pip install torch          # or the CUDA wheel from pytorch.org for a GPU node
+pip install torch          # or the CUDA wheel from pytorch.org
 ```
 
-Torch is not in `requirements.txt` so that pip cannot replace a working CUDA build with a
-CPU-only one. `numpy` is pinned exactly because the generator's random streams are only
-reproducible under the version that produced the data.
+Torch is not in `requirements.txt` so that pip cannot replace a CUDA build with a CPU one.
+`numpy` is pinned because the generator's random streams depend on the version. Every
+command below runs from the repository root with `PYTHONPATH=.:datagen`.
 
-To check the installation, generate a small development dataset under `data/dev/` (a few
-seconds) and train `configs/smoke.yaml` on it: a quarter-size model for three epochs, which
-exercises the whole path from config to metrics. Its numbers mean nothing.
+Smoke test, a few seconds of data and a quarter-size model for three epochs:
 
 ```bash
 for n in 1 2 3; do
@@ -157,14 +56,23 @@ done
 PYTHONPATH=.:datagen python -m t1t2.experiment --config configs/smoke.yaml --no-resume
 ```
 
-## Reproducing the thesis
+## Checkpoints
 
-### Everything at once
+`results/loss_uniform/checkpoints/best.pt` (the final model) and
+`results/baseline_v2_reproduction/checkpoints/best.pt` (the reference) are in the
+repository. The other 24 runs are attached to the GitHub release; unpacked at the root they
+land in `results/<run>/checkpoints/best.pt`, where every script looks for them:
 
-`main.py` runs the stages below in order, each as one of the scripts named in the following
-sections, and skips every step whose outputs already exist. On a fresh clone with the
-release checkpoints unpacked it regenerates the derived files without touching the data or
-the trained runs.
+```bash
+curl -L -o checkpoints_best.zip https://github.com/fatihoezkan/t1t2-detr/releases/download/v1.1.0/checkpoints_best.zip
+unzip -o checkpoints_best.zip
+```
+
+[results/README.md](results/README.md) shows how to load one.
+
+## Reproducing
+
+`main.py` runs the stages in order and skips every step whose outputs already exist:
 
 ```bash
 python main.py                                        # all stages
@@ -173,164 +81,50 @@ python main.py --force figures                        # redo even if the outputs
 python main.py --dry-run                              # print the plan
 ```
 
-The train stage is the 26 runs of the matrix; on a GPU node it is a day, on a CPU it is not
-practical. Run the training command below inside your cluster's job script instead, one
-config per job, and run the other stages afterwards.
-
-### Data
-
-Two dataset families, each with one file per compartment count so that training is exactly
-balanced across one, two and three compartments. The main family, used by every run except
-`data_loguniform`:
+The same stages as single commands:
 
 ```bash
+# data: one file per compartment count (data/README.md has the second family)
 for n in 1 2 3; do
   PYTHONPATH=.:datagen python datagen/run_generator.py --n-comp $n \
       --out-dir data/t1_3500_t2_500_100k/n$n --seed 3500500 \
       --n-train 33333 --n-val 3333 --n-test 3333 --n-per-snr 1667 \
       --t1-min 50 --t1-max 3500 --t2-min 5 --t2-max 500
 done
-```
 
-That gives 99,999 training voxels, 9,999 test voxels and five fixed-SNR test sets of 5,001
-voxels at SNR 20, 40, 60, 100 and 150. Training SNR is drawn from 30 to 150, so the SNR 20
-set is an extrapolation. The second family, for `data_loguniform`, uses the other sampler
-and its own seed:
-
-```bash
-for n in 1 2 3; do
-  PYTHONPATH=.:datagen python datagen/run_generator.py --n-comp $n \
-      --out-dir data/t1_loguniform_100k/n$n --seed 3500501 --sampling t1_log_uniform \
-      --n-train 33333 --n-val 3333 --n-test 3333 --n-per-snr 1667 \
-      --t1-min 50 --t1-max 3500 --t2-min 5 --t2-max 500
-done
-```
-
-`data/<family>/n<k>/manifest.json` records the seeds, sizes, ranges and library versions of
-the families that were actually used. The main family was generated under the pinned numpy,
-so the command above reproduces it exactly. The log-uniform family was generated under a
-newer numpy; regenerating it under the pin gives the same distribution but not the same
-individual voxels.
-
-### Training
-
-One run is one command. The results land in `results/<name>/`.
-
-```bash
+# train: one run, about 30 min on one A100, writes results/<name>/; resumes from last.pt
 PYTHONPATH=.:datagen python -m t1t2.experiment --config configs/loss_uniform.yaml
-```
 
-A run takes about half an hour on one A100 and early-stops well inside its 500-epoch budget.
-Training resumes from `last.pt` if a job is killed, so resubmitting the same command
-continues the run.
-
-### Evaluation
-
-```bash
-PYTHONPATH=.:datagen python evaluation/run_nd_evaluation.py results/<run>      # per run
-PYTHONPATH=.:datagen python evaluation/calibrate_threshold.py <run> [<run> ...]
-PYTHONPATH=.:datagen python evaluation/summarize_nd_evaluation.py
+# evaluate: evaluation/README.md lists every script
+PYTHONPATH=.:datagen python evaluation/run_nd_evaluation.py results/loss_uniform
+PYTHONPATH=.:datagen python evaluation/calibrate_threshold.py loss_uniform
 PYTHONPATH=.:datagen python evaluation/compare_experiments.py --all
-PYTHONPATH=.:datagen python evaluation/paired_tests.py
-PYTHONPATH=.:datagen python evaluation/snr_ladder.py
-```
 
-`run_nd_evaluation.py` and `calibrate_threshold.py` need a checkpoint.
-`summarize_nd_evaluation.py` and `paired_tests.py` read the per-voxel ND dumps that
-`run_nd_evaluation.py` writes, which are not shipped. `snr_ladder.py` runs inference for the
-eight seed runs of the reference and the final model, so it needs their checkpoints and the
-generated data; with `--replot` it redraws from the stored `results/snr_ladder/summary.json`.
-Only `compare_experiments.py --all` runs on a fresh clone as it is.
-
-The thesis figures are regenerated with the scripts under `evaluation/figures/` (its README
-names the script for every figure), and the notebook is re-executed in place with
-
-```bash
+# notebook
 jupyter nbconvert --to notebook --execute --inplace --ExecutePreprocessor.timeout=-1 notebooks/thesis.ipynb
 ```
 
-The figure scripts need `results/<run>/checkpoints/best.pt` for `baseline_v2_reproduction`
-and `loss_uniform`, both in the repository (see Trained models).
+Training all 26 runs takes about a day on a GPU node; submit one config per cluster job and
+run the other stages afterwards.
 
-## The experiments
+## The result
 
-`baseline_v2_reproduction` is the reference. Eleven arms each change exactly one thing
-relative to it, so that a difference can be attributed to a cause. Every run is scored on the
-same 9,999 test voxels at an existence threshold calibrated on its own validation split.
-Strict voxel accuracy means the right number of compartments and every one of them within
-the Normalised Distance tolerance; mAP@7 is threshold-free. The reference was retrained at
-four seeds, and its spread (0.81 pp strict accuracy, 0.0168 mAP@7) is what a change has to
-clear.
-
-| run | config | what changed | strict acc | mAP@7 | verdict |
-|---|---|---|---:|---:|---|
-| `baseline_v2_reproduction` | `configs/baseline_v2_reproduction.yaml` | reference | 57.98 % | 0.6671 | |
-| `loss_uniform` | `configs/loss_uniform.yaml` | no signal-fraction weighting in the loss | 62.13 % | 0.7719 | better |
-| `aux_loss` | `configs/aux_loss.yaml` | loss on every decoder layer | 58.23 % | 0.6721 | flat |
-| `physics_noisy` | `configs/physics_noisy.yaml` | signal-consistency term, measured target | 58.05 % | 0.6751 | flat |
-| `physics_clean` | `configs/physics_clean.yaml` | signal-consistency term, noise-free target | 57.86 % | 0.6672 | flat |
-| `queries_6` | `configs/queries_6.yaml` | 6 queries instead of 10 | 57.76 % | 0.6604 | flat |
-| `exist_head_shared` | `configs/exist_head_shared.yaml` | shared existence head | 57.72 % | 0.6643 | flat |
-| `decoder_6` | `configs/decoder_6.yaml` | 6 decoder layers | 57.33 % | 0.6604 | flat |
-| `queries_4` | `configs/queries_4.yaml` | 4 queries | 57.31 % | 0.6529 | flat |
-| `decoder_2` | `configs/decoder_2.yaml` | 2 decoder layers | 57.21 % | 0.6581 | flat |
-| `exist_weight_03` | `configs/exist_weight_03.yaml` | existence weight 0.1 to 0.3 | 55.66 % | 0.6705 | worse |
-| `data_loguniform` | `configs/data_loguniform.yaml` | log-uniform T1 sampling | 58.08 % | 0.6684 | other test set |
-
-One change helped, one hurt, nine did nothing measurable. `loss_uniform` was then retrained
-at the other three seeds: 61.43 % strict accuracy and 0.7635 mAP@7 averaged over four seeds,
-against 57.63 % and 0.6642 for the reference. It is the final model of the thesis.
-
-Five further models in `configs/combined/` change several things at once, each with success
-criteria written into its config before training; none of them beat the single change. The
-per-seed numbers, the combined models, the physics arms and the fixed-SNR ladder are in
-[configs/README.md](configs/README.md).
-
-What the loss change shows: under the inherited weighting a 5 % compartment carries about
-fifteen times less gradient than a 75 % one. Removing that scaling places the faint
-compartments the model finds much better (median relative T1 error 34 % to 22 %), but does
-not make it find more of them (63 % to 55 %), and count accuracy drops from 76.4 % to
-73.1 %. Placement is a property of the loss; detection of a faint compartment in 64
-measurements is not.
-
-## Reading the numbers
-
-Report per compartment count. The dataset balances one-, two- and three-compartment voxels,
-and an aggregate over them describes none of them well.
-
-Two threshold protocols exist. Each run can be scored at its own validation-calibrated
-threshold (the tables above) or all runs at one declared threshold. They agree on every arm
-except `queries_6` and `queries_4`, whose order swaps.
-
-Three different thresholds live in `results/`: the calibrated one in
-`results/threshold_val/<run>.json` (`val_theta`, 0.65 to 0.95), the parameter-error
-pipeline's `selected_threshold` in each run's `threshold_calibration.json` (0.22 to 0.77),
-and the ND evaluation's F1-calibrated `existence_threshold` in
-`results/nd_evaluation/<run>.json` (0.75 for every run but one). They are different quantities.
-
-The fields `t1_mae_ms`, `t2_mae_ms` and `w_mae` in `metrics_detr.json` are medians. The
-finished runs cannot be renamed, so the aliases `t1_abs_median_ms`, `t2_abs_median_ms` and
-`w_abs_median` exist and the comparison script uses those. Nothing is ever tuned on the test
-split. [evaluation/README.md](evaluation/README.md) has the full protocol.
+`baseline_v2_reproduction` is the reference and eleven arms each change exactly one thing.
+Only `loss_uniform`, which removes the signal-fraction weighting from the loss, clears the
+seed spread: 61.4 % strict voxel accuracy and 0.764 mAP@7 over four seeds against 57.6 % and
+0.664 for the reference. It is the final model of the thesis. The loss weighting governs how
+well a faint compartment is placed, not whether it is found. Tables for every arm, the
+combined models and the fixed-SNR ladder are in [configs/README.md](configs/README.md).
 
 ## Limitations
 
-The model is trained only on simulated data, and the gap to a real scan is the main
-scientific risk of the work. The compartments are random points in (T1, T2) space rather
-than tissue prototypes, on purpose, so the training distribution is not a model of a brain.
-Results on synthetic data do not establish in-vivo performance; that, and a regularised NNLS
-baseline on the same protocol, are future work. The upper part of the T2 range is weakly
-constrained by the protocol's echo times, and every arm except three rests on one training
-run.
+The model is trained on simulated data only, with random compartments rather than tissue
+prototypes, so the results do not establish in-vivo performance. The upper T2 range is
+weakly constrained by the protocol's echo times, and every arm except three rests on one
+training run.
 
 ## Use of AI tools
 
-Claude Code (Anthropic) and Codex (OpenAI) were used to write and debug the data generator,
-the training and evaluation code, and the scripts that produce the figures. All
-code was reviewed and tested by me, and every reported number was produced by running this
-code on the data described above. No AI tool was used to generate or alter data or results.
-The thesis carries the same statement.
-
-## Credits
-
-Attribution for the architecture and the prior work is in [CREDITS.md](CREDITS.md).
+Claude Code (Anthropic) and Codex (OpenAI) were used to write and debug the code. All code
+was reviewed and tested by me, every reported number was produced by running it, and no AI
+tool generated or altered data or results. The thesis carries the same statement.

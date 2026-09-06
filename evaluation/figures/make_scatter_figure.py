@@ -7,8 +7,6 @@ parameter errors. The tau = 7% acceptance corridor is drawn around the diagonal 
 and T2. Reads results/<run>/ (config, summary.json, best.pt) and the test parquets.
 Writes figures/12_pred_true_scatter.png. Usage: PYTHONPATH=.:datagen python3 evaluation/figures/make_scatter_figure.py
 """
-import os
-import sys
 from pathlib import Path
 
 import matplotlib as mpl
@@ -18,8 +16,6 @@ mpl.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT))
-os.chdir(ROOT)
 
 from t1t2.eval import _match  # noqa: E402
 from t1t2.runs import load_run  # noqa: E402

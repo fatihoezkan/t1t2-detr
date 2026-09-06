@@ -7,8 +7,6 @@ units of sigma. (c) Share of the smaller compartment found in two-compartment vo
 that residual in units of sigma. Reads results/compartment_noise_ratio_test.parquet and the n2
 test parquet; writes figures/20_noise_small_compartments.png and results/separability_k2_test.parquet. Usage: PYTHONPATH=.:datagen python3 evaluation/figures/make_noise_effect_figure.py
 """
-import os
-import sys
 from pathlib import Path
 
 import matplotlib as mpl
@@ -19,8 +17,6 @@ mpl.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT))
-os.chdir(ROOT)
 
 from t1t2.physics import forward_numpy, load_protocol  # noqa: E402
 

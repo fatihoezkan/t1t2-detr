@@ -7,8 +7,6 @@ its right while T1 stays flat. Reads results/<run>/ (config, summary.json, best.
 test parquets. Writes figures/16_t2_profile.png.
 Usage: PYTHONPATH=.:datagen python3 evaluation/figures/make_t2_profile.py
 """
-import os
-import sys
 from pathlib import Path
 
 import matplotlib as mpl
@@ -19,8 +17,6 @@ import matplotlib.patheffects as pe  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT))
-os.chdir(ROOT)
 
 from t1t2 import nd_metrics as ndm  # noqa: E402
 from t1t2.eval import _match  # noqa: E402

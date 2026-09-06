@@ -6,8 +6,6 @@ plane. Reads results/<run>/{config.yaml, summary.json, checkpoints/best.pt} and 
 parquets named in the config; inference runs on the CPU. Writes figures/11_queries.png.
 Usage: PYTHONPATH=.:datagen python3 evaluation/figures/make_query_figure.py
 """
-import os
-import sys
 from pathlib import Path
 
 import matplotlib as mpl
@@ -19,8 +17,6 @@ import matplotlib.pyplot as plt  # noqa: E402
 import matplotlib.ticker as mticker  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT))
-os.chdir(ROOT)
 
 from t1t2.runs import load_run  # noqa: E402
 
