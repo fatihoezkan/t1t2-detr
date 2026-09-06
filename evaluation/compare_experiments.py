@@ -3,9 +3,9 @@
 
 Reads results/<run>/summary.json and config.yaml. Prints metrics as rows and runs as columns,
 reference first, with a signed delta per arm, then a per-arm verdict from the config diff
-(single change / NOT INTERPRETABLE / DIFFERENT DATASET / CONTROL). Writes comparison.md,
-comparison_metrics.csv and comparison_arms.csv to results/_comparison/. One run per arm, so no
-error bars; see configs/README.md.
+(REFERENCE / single change / NOT INTERPRETABLE / DIFFERENT DATASET / CONTROL). Writes
+comparison.md, comparison_metrics.csv and comparison_arms.csv to results/_comparison/. Most
+arms are a single run, so there are no error bars. See configs/README.md.
     python evaluation/compare_experiments.py --all | <run> [<run> ...]
 """
 from __future__ import annotations
@@ -110,10 +110,9 @@ IGNORED_CONFIG_FIELDS = {"name", "notes"}
 def flatten(d: dict, prefix: str = "") -> dict:
     """Flatten a nested config dict to `section.field` keys so two configs can be diffed.
 
-    Lists are kept whole, not expanded per index: a data path list is one setting, and expanding
-    it would report three differences for data_loguniform where there is one.
+    Lists are kept whole rather than expanded per index, because a data path list is one
+    setting: expanding it would report three differences for data_loguniform where there is one.
     """
-    # recurse into dicts, keep lists whole as tuples
     out: dict = {}
     for k, v in d.items():
         key = f"{prefix}{k}"
@@ -188,7 +187,6 @@ def metric_value(run: dict, source: str, key: str) -> tuple[float | None, str | 
 # --------------------------------------------------------------------------------------------
 def config_diff(baseline: dict, arm: dict) -> list[tuple[str, object, object]]:
     """Every config field where the arm differs from the baseline, ignoring name and notes."""
-    # union of the keys, minus name and notes
     keys = (set(baseline["config"]) | set(arm["config"])) - IGNORED_CONFIG_FIELDS
     diffs = []
     for k in sorted(keys):
@@ -292,8 +290,8 @@ def fmt(value: float | None, kind: str) -> str:
 def fmt_delta(base: float | None, value: float | None, kind: str, direction: int) -> str:
     """Signed delta in the metric's own units, with a better/worse marker.
 
-    Percentage metrics get percentage points, not a relative change: 78.54 % -> 79.54 % is
-    "+1.00 pp", not "+1.3 %".
+    Percentage metrics are reported in percentage points: 78.54 % -> 79.54 % is "+1.00 pp"
+    rather than "+1.3 %".
     """
     # no delta without both values
     if base is None or value is None:
@@ -351,7 +349,6 @@ def build_metric_rows(runs: list[dict], baseline: dict) -> tuple[list[list[str]]
 def weight_bin_block(runs: list[dict], baseline: dict) -> tuple[list[list[str]], list[str]]:
     """Recovery resolved by true compartment weight, the block the loss_uniform arm is judged on."""
     def bins_of(run):
-        """Look up recovery results by signal-fraction group."""
         b = run["summary"].get("detr", {}).get("parameter_recovery", {}).get("bins", [])
         return {x["label"]: x for x in b}
 
@@ -382,7 +379,6 @@ def markdown_table(header: list[str], rows: list[list[str]], align_first_left=Tr
     widths = [max(len(header[i]), *(len(r[i]) for r in rows)) if rows else len(header[i])
               for i in range(len(header))]
     def line(cells):
-        """Format one table row with evenly padded columns."""
         return "| " + " | ".join(c.ljust(widths[i]) for i, c in enumerate(cells)) + " |"
     sep = "|" + "|".join(
         ("-" * (w + 2)) if (i == 0 and align_first_left) else ("-" * (w + 1) + ":")
@@ -411,13 +407,15 @@ reads as a larger effect than it is.
 `t2_mae_ms` and `w_mae` that `eval._regression_block` computes with `_median()`. This table
 reads the unambiguous aliases instead and labels every such row "absolute error, median". The
 genuine means are reported as separate rows: on the reference run the median T1 absolute error
-is 29.60 ms against a mean of 122.50 ms, a factor of 4.1. That gap is a result in its own
-right, since it says the error is concentrated in a minority of hard voxels.
+is 28.50 ms against a mean of 115.38 ms, a factor of four. That gap is a result in its own
+right, since it says most of the error comes from a minority of hard voxels.
 
-**One seed per arm, so there are no error bars here.** Every run in this table is seed
-20260724, run once, which gives a point estimate and no interval. The measured spread across
-repeated training of the same config is reported in `configs/README.md`; a delta smaller than
-that spread should be reported as within run-to-run variation rather than as an effect.
+**Most arms are one run at one seed, so there are no error bars here.** Every single-change
+arm and every combined model is seed 20260724, run once, which gives a point estimate and no
+interval. The `*_seed<seed>` rows are the seed replicates of the reference, `loss_uniform` and
+`final_uniform_q6`. The measured spread across those repeats is reported in `configs/README.md`.
+A delta smaller than that spread should be reported as run-to-run variation rather than as an
+effect.
 
 **A different test set is a different question.** An arm marked `DIFFERENT DATASET` is scored on
 another voxel family, so its delta mixes the change under test with the difference between two
@@ -435,7 +433,7 @@ sentence as its result. The numbers are in `configs/README.md`.
 
 
 def write_report(runs: list[dict], out_dir: Path, notes_extra: list[str]) -> dict:
-    """Save the experiment comparison as Markdown, CSV, and JSON."""
+    """Write comparison.md and the two CSVs; returns their paths and the verdicts."""
     # build the three tables
     baseline = runs[0]
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -530,12 +528,12 @@ def write_report(runs: list[dict], out_dir: Path, notes_extra: list[str]) -> dic
 # cli
 # --------------------------------------------------------------------------------------------
 def discover_runs(results_dir: Path) -> list[str]:
-    """Every immediate subdirectory of results/ that holds a summary.json.
+    """Every immediate subdirectory of results/ that holds a summary.json and a config.yaml.
 
-    Immediate only: superseded runs live under results/_historical_runs/ and used different data
-    families and a different loss reduction, so they are not comparable with the current matrix.
+    results/snr_ladder/ also writes a summary.json but is not a run; the config check skips it.
     """
-    return sorted(p.parent.name for p in results_dir.glob("*/summary.json"))
+    return sorted(p.parent.name for p in results_dir.glob("*/summary.json")
+                  if p.with_name("config.yaml").exists())
 
 
 def main(argv=None) -> int:

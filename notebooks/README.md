@@ -4,8 +4,8 @@
 the final model (Part 2) and every results table of the thesis recomputed from `results/`
 (Part 3). Part 3 works on a fresh clone. Parts 1 and 2 run inference and need
 `results/<run>/checkpoints/best.pt`; the per-arm galleries of section 2.9 need every
-checkpoint from the release zip (root README, Checkpoints). Inference results are cached
-under `.cache_visuals/`; delete it to force a rerun.
+checkpoint from the release zip (root README, Trained models). Inference results are cached
+under `.cache_visuals/`. Delete it to force a rerun.
 
 Re-execute it in place with
 

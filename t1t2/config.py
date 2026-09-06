@@ -149,13 +149,11 @@ class ExperimentConfig:
     notes: str = ""
 
     def to_dict(self) -> dict:
-        """Turn the experiment settings into a dictionary."""
         return asdict(self)
 
     def save(self, path: str | Path) -> None:
         """Write the config as YAML, keeping the section order (sort_keys=False) so a saved
         config diffs cleanly against its source."""
-        # create the parent folder, then dump the sections in definition order
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w") as f:
@@ -164,7 +162,6 @@ class ExperimentConfig:
 
 def load_config(path: str | Path) -> ExperimentConfig:
     """Read a YAML file into an ExperimentConfig."""
-    # parse the YAML into a plain dict, then into the dataclasses
     with open(path) as f:
         raw = yaml.safe_load(f)
     return from_dict(raw)

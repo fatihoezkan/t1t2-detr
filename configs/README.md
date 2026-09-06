@@ -1,9 +1,9 @@
 # The experiments
 
-One YAML per trained run. `configs/*.yaml` holds the reference, eleven arms that each change
-exactly one thing, and `smoke.yaml`; `combined/` holds five models that change several
-things at once and `seeds/` the ten seed replicates. Every run has a directory under
-`results/` with its config, training curve and metrics, and the `notes` field of each config
+One YAML per trained run. `configs/*.yaml` holds the reference and the eleven arms that each
+change exactly one thing. `combined/` holds five models that change several things at once,
+and `seeds/` holds the ten seed replicates. Every run has a directory under
+`results/` with its config, training curve and metrics. The `notes` field of each config
 says what it changes and why.
 
 `evaluation/compare_experiments.py` checks the one-change rule mechanically. Three arms touch
@@ -33,7 +33,7 @@ the selection metric does not track detection quality.
 Every arm is one run at seed 20260724, scored on the same 9,999 test voxels at its own
 validation-calibrated threshold theta ([evaluation/README.md](../evaluation/README.md)
 explains the protocol). Strict accuracy needs the right number of compartments and every one
-inside the ND tolerance; mAP is threshold-free.
+inside the ND tolerance. mAP needs no threshold at all.
 
 | arm | what changed | theta | strict acc | mAP@7 | precision | recall | verdict |
 |---|---|---:|---:|---:|---:|---:|---|
@@ -53,9 +53,9 @@ inside the ND tolerance; mAP is threshold-free.
 One arm helped, one hurt, nine stayed inside the seed spread. `data_loguniform` is scored on
 a different voxel family, so it is not an ablation result.
 
-`queries_4` and `queries_6` also change the parameter count and the existence class balance;
-at four queries the existence `pos_weight` hits its clamp floor of 0.50. Both show the
-pattern of fewer slots, higher precision and lower recall. `exist_head_shared` changes the
+`queries_4` and `queries_6` also change the parameter count and the existence class balance.
+At four queries the existence `pos_weight` hits its clamp floor of 0.50. Both show the same
+pattern: fewer slots, higher precision, lower recall. `exist_head_shared` changes the
 parameter count by about 2.6 %, so it is a capacity change as well.
 
 ## loss_uniform at four seeds
@@ -78,17 +78,17 @@ Per seed, `loss_uniform` reaches 62.13, 61.00, 60.88 and 61.72 % strict accuracy
 Under `signal_fraction` a 5 % pool carries about fifteen times less gradient than a 75 %
 pool. Removing the weighting places the faintest compartments much better (median relative
 T1 error 34.23 % to 22.17 %, T2 error 39.41 % to 27.56 %) but finds fewer of them (63.49 %
-to 55.23 %) and costs count accuracy. The weighting governs where a compartment is placed,
-not whether a faint one is detected. It is one config field but three code paths: the
-matching cost, the per-pair errors and the per-voxel reduction all stop being scaled by the
-true weight.
+to 55.23 %) and costs count accuracy. So the weighting decides how accurately a compartment
+is placed and has little to do with whether a faint one gets detected. Although it is a single
+config field, it touches three code paths: the matching cost, the per-pair errors and the
+per-voxel reduction all stop being scaled by the true weight.
 
 ## Combined models
 
 Each config in `combined/` carries in its `notes` the success criteria written down before
 training and how it did against them. None beat the single change.
 
-| model | what changed | runs | theta | strict acc | delta vs reference |
+| model | what changed | runs | theta | strict acc | delta vs reference (four-seed mean, 57.63 %) |
 |---|---|---:|---:|---:|---:|
 | `baseline_v3` | 2 decoder layers, 6 queries, shared existence head, sqrt(w) loss weighting, signal-consistency term | 1 | 0.85 | 59.35 % | +1.72 pp |
 | `baseline_v3_no_sqrt` | v3 with the baseline's signal-fraction weighting back | 1 | 0.85 | 57.62 % | -0.02 pp |
@@ -101,7 +101,7 @@ two of its three criteria. Its two decomposition runs show that the flattened we
 the work and also cost the counting, while the consistency term sharpened parameters without
 solving more voxels. `baseline_v4` kept only the components that had measured flat and
 gained nothing. `final_uniform_q6` (uniform weighting plus 6 queries, four seeds) reaches
-60.76 % against 61.43 % for `loss_uniform` and 0.7452 mAP@7 against 0.7635: the query cut
+60.76 % against 61.43 % for `loss_uniform` and 0.7452 mAP@7 against 0.7635. The query cut
 adds nothing once the weighting is fixed, so `loss_uniform` alone is the final model.
 
 ## The physics term
@@ -109,15 +109,16 @@ adds nothing once the weighting is fixed, so `loss_uniform` alone is the final m
 Both physics arms are flat on the headline measures. They sharpen the parameters of the
 compartments the signal already pins down (pooled median absolute T1 error 28.50 ms to
 26.71 ms with the measured target and 26.94 ms with the clean one) but not the faint
-compartments the term was meant for, and the target makes no difference. The clean arm is
-the informative half: with the best target the term could have, it still does not help, so
-the Hungarian loss already constrains the prediction enough. The design is in
+compartments the term was meant for, and the choice of target makes no difference. The clean
+arm is the more telling of the two. Even with the best target the term could possibly have,
+it does not help, which suggests the Hungarian loss already constrains the prediction enough.
+The design is in
 [t1t2/README.md](../t1t2/README.md#the-signal-consistency-loss).
 
 ## The fixed-SNR ladder
 
 Five fixed-SNR test sets hold the same voxels with the same standardised noise draw, so only
-the noise amplitude changes between rungs. Means over four seeds, range in brackets; SNR 20
+the noise amplitude changes between rungs. Means over four seeds, range in brackets. SNR 20
 is below the training range of 30 to 150.
 
 | SNR | reference strict acc. | final strict acc. | reference count acc. | final count acc. | reference rel. T1 err. | final rel. T1 err. |

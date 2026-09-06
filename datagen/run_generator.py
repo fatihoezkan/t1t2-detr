@@ -1,6 +1,5 @@
 """Command-line entry point: generate one synthetic voxel dataset family.
 
-    PYTHONPATH=.:datagen python datagen/run_generator.py --n-comp 2 --smoke            # dry run
     PYTHONPATH=.:datagen python datagen/run_generator.py --n-comp 2 --out-dir data/n2
 
 A family is train, val, test and the fixed-SNR test sets for one compartment count.
@@ -17,11 +16,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from voxel_simulator.generate import (  # noqa: E402
-    DatasetFamilyConfig,
-    generate_dataset_family,
-    smoke_config,
-)
+from voxel_simulator.generate import DatasetFamilyConfig, generate_dataset_family  # noqa: E402
 from voxel_simulator.sampler import (  # noqa: E402
     DEFAULT_SAMPLING,
     MAX_COMP,
@@ -34,7 +29,6 @@ from voxel_simulator.sampler import (  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
-    """Read dataset generation options from the command line."""
     ap = argparse.ArgumentParser(description="Generate the synthetic T1-T2 voxel dataset family.")
     ap.add_argument("--out-dir", default=str(PROJECT_ROOT / "output" / "data"),
                     help="Directory for the parquet files.")
@@ -79,12 +73,10 @@ def parse_args() -> argparse.Namespace:
                          "robustness test sets use --sigma-ladder instead of --snr-ladder.")
     ap.add_argument("--sigma-ladder", type=float, nargs="+", default=[0.05, 0.1, 0.2],
                     help="Fixed sigma values for the test sets (used only with --noise-sigma).")
-    ap.add_argument("--smoke", action="store_true", help="Tiny sizes for a quick dry run.")
     return ap.parse_args()
 
 
 def main() -> None:
-    """Generate the requested datasets, using tiny sizes for smoke runs."""
     # command line -> family config
     a = parse_args()
     config = DatasetFamilyConfig(
@@ -105,9 +97,6 @@ def main() -> None:
         noise_sigma=a.noise_sigma,
         sigma_ladder=tuple(a.sigma_ladder),
     )
-    # tiny sizes for a dry run
-    if a.smoke:
-        config = smoke_config(config)
     generate_dataset_family(config)
 
 

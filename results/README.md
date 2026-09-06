@@ -8,6 +8,13 @@ the epoch with the lowest validation parameter loss. `_comparison/`, `nd_evaluat
 `threshold_val/`, `threshold_sweep/` and `snr_ladder/` hold the outputs of the scripts in
 `evaluation/`.
 
+Directly under `results/`, `paired_tests.json` comes from `evaluation/paired_tests.py`,
+`error_distribution_summary.json` from `evaluation/figures/make_error_distribution.py`, and the
+two parquet files from the two noise scripts under `evaluation/figures/`. `review_stats.json`
+and `nd_evaluation/tables_2d_3d.json` are frozen outputs; the scripts that built them are no
+longer in the repository. The notebook reads the first for the per-count accuracies of the
+reference and final families, and nothing reads the second.
+
 Every run shares the same procedure: AdamW at learning rate 1e-4, weight decay 1e-4, betas
 (0.9, 0.98), batch size 512, gradient clipping at 1, learning rate halved after 7 epochs
 without improvement down to 1e-6, a budget of 500 epochs, and early stopping after 35 epochs
@@ -63,5 +70,5 @@ model.eval()
 peak magnitude and returns `(batch, queries, 4)`: T1 and T2 in the normalised [0, 1] space of
 `t1t2.data.TargetNormalizer`, the signal fraction and the existence logit;
 `t1t2.eval.detr_query_outputs` converts back to milliseconds. `t1t2.runs.load_run` does all
-of the above in one call. Only two checkpoints are in the repository; the root README says
+of the above in one call. Only two checkpoints are in the repository. The root README says
 where the other 24 come from.

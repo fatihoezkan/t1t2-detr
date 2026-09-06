@@ -1,8 +1,9 @@
-"""ND voxel accuracy against the existence threshold, for every run.
+"""ND voxel accuracy against the existence threshold, for the reference and the eleven
+single-change arms.
 
-Shows why the threshold should be declared rather than grid-searched: the curves are broad
-and rise almost to the top of the range, so a search that maximises the metric simply
-returns the largest value it is allowed to try. Reads results/threshold_sweep/<run>.json.
+Shows why the threshold is calibrated on validation instead of searched on test: the curves
+are broad and keep rising almost to the top of the range, so a search on test would mostly
+return the largest value it is allowed to try. Reads results/threshold_sweep/<run>.json.
 Writes figures/fig_threshold_sweep.png.
 Usage: python3 evaluation/figures/plot_threshold_sweep.py
 """
@@ -55,4 +56,4 @@ axes[0].legend(fontsize=8.5, loc="upper left", framealpha=0.9)
 fig.tight_layout()
 OUT.parent.mkdir(exist_ok=True)
 fig.savefig(OUT, dpi=200)
-print("wrote", OUT)
+print("wrote", OUT.relative_to(ROOT))

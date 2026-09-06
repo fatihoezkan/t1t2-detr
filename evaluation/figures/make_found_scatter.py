@@ -34,7 +34,8 @@ OUT = ROOT / "figures" / ("15_found_missed_map7.png" if MAP7 else "14_found_miss
 
 
 def found_missed(run):
-    """Collect T1 and T2 values for found and missed compartments."""
+    """(found, missed) lists of (T1, T2) over every true compartment, plus the run's config
+    and threshold."""
     # inference, then the ND rule per voxel
     loaded = load_run(ROOT / "results" / run)
     cfg, spans = loaded.cfg, loaded.spans
@@ -79,10 +80,10 @@ for ax, (run, label) in zip(axes, RUNS):
             path_effects=[pe.Stroke(linewidth=2.4, foreground="white"), pe.Normal()])
 axes[0].set_ylabel("true $T_2$ (ms)")
 fig.suptitle("Every true compartment of the test set: found vs missed "
-             + ("(τ = 7% acceptance box, NO existence threshold — the view mAP@7 takes)" if MAP7 else "(τ = 7% acceptance box AND the existence threshold, at each run's fitted θ)"), x=0.01, ha="left", fontsize=BASE, y=1.02)
+             + ("(τ = 7% acceptance box, NO existence threshold, the view mAP@7 takes)" if MAP7 else "(τ = 7% acceptance box AND the existence threshold, at each run's fitted θ)"), x=0.01, ha="left", fontsize=BASE, y=1.02)
 fig.tight_layout()
 h, l = axes[0].get_legend_handles_labels()
 fig.legend(h, l, loc="upper center", ncol=3, fontsize=SMALL, markerscale=4,
            bbox_to_anchor=(0.5, 0.0))
 OUT.parent.mkdir(exist_ok=True)
-fig.savefig(OUT); print("wrote", OUT)
+fig.savefig(OUT); print("wrote", OUT.relative_to(ROOT))

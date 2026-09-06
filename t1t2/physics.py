@@ -33,7 +33,6 @@ class Protocol:
 
     @property
     def n_points(self) -> int:
-        """Return the number of measurements in the protocol."""
         return int(self.ti.shape[0])
 
 
@@ -43,7 +42,6 @@ def load_protocol(mat_path: str | None = None) -> Protocol:
     Position p has to mean the same (TI_p, TE_p) at training and at inference, so the
     arrays are never sorted or regrouped.
     """
-    # read the .mat file and flatten the arrays in stored order
     d = sio.loadmat(mat_path or _DEFAULT_MAT)
     ti = np.asarray(d["ti"], dtype=np.float64).flatten()
     te = np.asarray(d["te"], dtype=np.float64).flatten()

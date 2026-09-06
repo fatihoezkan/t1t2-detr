@@ -1,7 +1,7 @@
 # Evaluation
 
 Scripts that turn a finished run into numbers that can be compared between runs. `main.py`
-at the root runs them in order; each also runs on its own from the repository root with
+at the root runs them in order. Each also runs on its own from the repository root with
 `PYTHONPATH=.:datagen`.
 
 | script | what it writes |
@@ -16,9 +16,11 @@ at the root runs them in order; each also runs on its own from the repository ro
 | `query_analysis.py <run>` | per-query usage of one run |
 | `figures/` | one script per thesis figure |
 
-Only `compare_experiments.py --all` runs on a fresh clone as it is. The first three need a
-checkpoint and the generated data; `summarize_nd_evaluation.py` and `paired_tests.py` read
-the per-voxel ND dumps that `run_nd_evaluation.py` writes, which are not shipped.
+On a fresh clone `compare_experiments.py --all`, `snr_ladder.py --replot`,
+`figures/plot_threshold_sweep.py` and `figures/make_relaxation_figure.py` run as they are. The
+first three scripts in the table need a checkpoint and the generated data.
+`summarize_nd_evaluation.py` and `paired_tests.py` read the per-voxel ND dumps that
+`run_nd_evaluation.py` writes, which are not shipped.
 
 ## What counts as a hit
 
@@ -29,10 +31,10 @@ feature's range in log space:
 
     ND_T1 = |log T1_pred - log T1_true| / (log T1_max - log T1_min)
 
-Among the candidates that pass, the assignment goes to the smallest ND sum; the sum ranks
-but never accepts, so one badly wrong dimension cannot be averaged away. Log space makes tau
-a relative error budget and matches the log-space costs of the training loss. The weight is
-excluded from the test and reported separately.
+Among the candidates that pass, the assignment goes to the one with the smallest ND sum. The
+sum only ranks candidates that already passed, so one badly wrong dimension cannot be averaged
+away by a good one. Log space makes tau a relative error budget and matches the log-space
+costs of the training loss. The weight is excluded from the test and reported separately.
 
 ## The metrics
 
@@ -40,7 +42,8 @@ excluded from the test and reported separately.
   probability as confidence and no threshold. It measures how well the existence head ranks
   its own queries and is the primary metric.
 - **Strict voxel accuracy**: the right number of compartments and every one inside the ND
-  tolerance. Harsher than either half alone, and what an application would care about.
+  tolerance. This is harsher than either half alone, and it is the number an application
+  would care about.
 - **Precision, recall, F1 and errors** at one existence threshold per run. Errors are over
   true positives only, so they improve as recall falls and must be read next to the recall.
 
@@ -53,10 +56,11 @@ unconstrained.
 
 Each run is reported at its own threshold, swept on the validation split for strict
 accuracy and applied unchanged to test (`calibrate_threshold.py`). Models peak between 0.65
-and 0.95, so one fixed threshold would handicap whichever sits furthest from it; the two
-protocols agree on every arm except `queries_6` and `queries_4`, whose order swaps. Strict
-accuracy is the right quantity to calibrate on because it has an interior optimum, unlike
-F1, which saturates at the edge of the grid. Nothing is tuned on the test split.
+and 0.95, so one fixed threshold would handicap whichever sits furthest from it. A fixed
+threshold and the calibrated one agree on every arm except `queries_6` and `queries_4`, whose
+order swaps. Strict accuracy is the right quantity to calibrate on because it has an interior
+optimum. F1 does not: it saturates at the edge of the grid. The test split is never used for
+tuning.
 
 Three thresholds live in `results/` and mean different things:
 
@@ -70,14 +74,14 @@ Three thresholds live in `results/` and mean different things:
 
 The reference retrained at four seeds gives the ruler: 0.81 pp on strict accuracy and
 0.0168 on mAP@7 ([configs/README.md](../configs/README.md)). `paired_tests.py` goes further
-where the data allows: two runs score the same test voxels, so strict and count accuracy
-get McNemar's exact test, mAP a paired bootstrap over voxels, both Holm-Bonferroni
-corrected, all from the stored ND records without any inference.
+where the data allows. Two runs score the same test voxels, so strict and count accuracy
+get McNemar's exact test and mAP gets a paired bootstrap over voxels, both Holm-Bonferroni
+corrected. All of it is computed from the stored ND records, so no model has to be run.
 
 ## Misnamed fields
 
 `t1_mae_ms`, `t2_mae_ms` and `w_mae` in `metrics_detr.json` are medians. The finished runs
 cannot be renamed, so the aliases `t1_abs_median_ms`, `t2_abs_median_ms` and `w_abs_median`
 exist and `compare_experiments.py` reads those. The means are separate fields, and the gap
-is itself a finding: on the reference the median T1 error is 28.5 ms against a mean of
-115.4 ms, so the error is concentrated in a minority of hard voxels.
+between median and mean is worth knowing: on the reference the median T1 error is 28.5 ms
+against a mean of 115.4 ms, so most of the error comes from a minority of hard voxels.

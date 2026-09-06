@@ -307,12 +307,12 @@ def parameter_recovery_analysis(preds, trues, weight_bins=None):
 
 
 def _median(a):
-    """Return the middle value, or NaN if there are no values."""
+    """Median, or NaN when empty."""
     return float(np.median(a)) if len(a) else float("nan")
 
 
 def _mean(a):
-    """Return the average, or NaN if there are no values."""
+    """Mean, or NaN when empty."""
     return float(np.mean(a)) if len(a) else float("nan")
 
 
@@ -332,8 +332,8 @@ def _regression_block(preds, trues, prefix=""):
             (t2_rel_csf if t[1] > CSF_T2_MS else t2_rel_noncsf).append(rel2)
     return {
         f"{prefix}n_matched": int(len(t1_rel)),
-        # Legacy headline keys. Documented as medians historically and kept so existing
-        # notebooks read old and new runs consistently.
+        # These keys are misnamed: t1_mae_ms and friends are medians. They stay so that old
+        # and new runs read the same; the explicit names below are the ones to use.
         f"{prefix}t1_rel_median": _median(t1_rel),
         f"{prefix}t2_rel_median": _median(t2_rel),
         f"{prefix}t1_mae_ms": _median(t1_abs),
@@ -357,8 +357,8 @@ def count_detection_metrics(preds, trues):
     """Precision and recall on existence, counted per compartment.
 
     Each voxel contributes min(predicted, true) true positives; surplus predictions are false
-    positives and missing ones are false negatives. Counting only; parameter quality is scored
-    separately on the matched pairs.
+    positives and missing ones are false negatives. This only counts. Parameter quality is
+    scored separately on the matched pairs.
     """
     # predicted and true counts per voxel
     pc = np.asarray([len(p) for p in preds], dtype=int)
@@ -423,7 +423,7 @@ def physics_violations(preds):
 def compute_metrics(preds, trues, n_queries=10):
     """Score a whole split: counting, parameter error, per-count breakdown, physics, CSF.
 
-    Count accuracy compares len(pred) with len(true) per voxel; no matching involved.
+    Count accuracy compares len(pred) with len(true) per voxel and needs no matching.
     Regression errors are collected over matched pairs only, with each T2 error filed into the
     CSF or non-CSF bucket by the true T2. Relative errors are reported as medians, since a few
     badly matched pairs would dominate a mean. Read quality per compartment count: the dataset
@@ -443,8 +443,9 @@ def compute_metrics(preds, trues, n_queries=10):
     m |= _regression_block(preds, trues)
 
     # Restricted to voxels whose count is right. An undercounting model only reports the
-    # compartments it did find, which flatters its matched errors; this brackets that bias
-    # from the other side. Conditioned on success, so not a random-voxel estimate.
+    # compartments it did find, which flatters its matched errors, and this block brackets
+    # that bias from the other side. Because it is conditioned on success it is not an
+    # estimate over random voxels.
     ok = [i for i in range(len(preds)) if len(preds[i]) == len(trues[i])]
     m |= _regression_block([preds[i] for i in ok], [trues[i] for i in ok], prefix="cc_")
     m["cc_n_voxels"] = len(ok)
@@ -738,8 +739,9 @@ def evaluate_detr(model, ds, device, normalizer, results_dir, exist_thresh=0.5, 
                   n_queries=10):
     """Predict, score, and write the metrics and figures into results_dir.
 
-    exist_thresh is passed in, not searched for here: tuning it on the split being reported
-    would score the model on data it was tuned against. Sweep it on validation instead.
+    exist_thresh is passed in rather than searched for here, because tuning it on the split
+    being reported would score the model on data it was tuned against. Sweep it on validation
+    instead.
     """
     # predict, score, save the metrics and the scatter
     preds = detr_predictions(model, ds, device, normalizer, exist_thresh)
@@ -782,7 +784,6 @@ def evaluate_snr_ladder(model, paths, cfg, device, normalizer, results_dir, trai
     """
     from .data import VoxelDataset
 
-    # score each rung on its own
     out = {}
     for label, path in paths.items():
         ds = VoxelDataset(path, cfg, normalizer, limit=limit)
@@ -809,7 +810,6 @@ def _snr_of(label):
 
 def _save(metrics, preds, trues, results_dir, tag):
     """Write metrics_<tag>.json and the corresponding scatter plot into results_dir."""
-    # metrics JSON and the scatter figure
     rd = Path(results_dir)
     (rd / "figures").mkdir(parents=True, exist_ok=True)
     with open(rd / f"metrics_{tag}.json", "w") as f:

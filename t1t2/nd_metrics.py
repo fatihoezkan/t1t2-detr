@@ -23,7 +23,6 @@ def log_spans(t1_min, t1_max, t2_min, t2_max):
     are what tau is a fraction of, so they must come from the training config, not from the
     data at hand.
     """
-    # log(max) - log(min) for T1 and T2
     return (float(np.log(t1_max) - np.log(t1_min)),
             float(np.log(t2_max) - np.log(t2_min)))
 
@@ -216,7 +215,6 @@ def calibrate_threshold_nd(query_outputs, trues, spans, tau=TAU_BASE,
     maps each threshold to its exact metrics. The original searches on test; this runs on
     validation, so no test data enters the choice, and the result is applied unchanged to test.
     """
-    # default grid 0.25 .. 0.75
     if grid is None:
         grid = [round(0.25 + 0.05 * i, 2) for i in range(11)]   # 0.25 .. 0.75
     table = {}
@@ -246,7 +244,7 @@ def stratified_map(query_outputs, trues, spans, tau=TAU_BASE, weight_bins=(0.3, 
     recs, n_gt = dataset_records(query_outputs, trues, spans, tau, exist_thresh=0.0)
 
     def _subset_map(gt_mask_fn):
-        """Measure average precision for a chosen group of true compartments."""
+        """101-point AP over the ground truth that gt_mask_fn selects."""
         # keep only predictions assigned to ground truth in this stratum
         conf, keys = [], []
         total_gt = 0

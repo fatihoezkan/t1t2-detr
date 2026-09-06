@@ -99,10 +99,6 @@ The main finding sits in this block rather than in the aggregates: recovery degr
 | 0.75–1.00  | median T1 rel. error | 1.68 %                   | 1.67 %   | -0.01 pp (better) | 1.65 %                | -0.03 pp (better) | 1.71 %                | +0.03 pp (worse)  | 1.80 %                | +0.12 pp (worse)  | 1.47 %      | -0.21 pp (better) | 1.73 %                 | +0.05 pp (worse)  | 1.37 %              | -0.31 pp (better) | 1.42 %      | -0.26 pp (better) | 1.70 %          | +0.02 pp (worse)  | 1.78 %    | +0.10 pp (worse)  | 1.78 %    | +0.10 pp (worse)  | 1.77 %            | +0.09 pp (worse)  | 1.95 %          | +0.27 pp (worse)   | 1.94 %                        | +0.26 pp (worse)   | 1.93 %                        | +0.24 pp (worse)  | 2.09 %                        | +0.41 pp (worse)   | 1.89 %                        | +0.21 pp (worse)   | 1.88 %       | +0.20 pp (worse)   | 1.87 %                    | +0.18 pp (worse)   | 2.06 %                    | +0.37 pp (worse)  | 1.95 %                    | +0.27 pp (worse)   | 1.41 %        | -0.27 pp (better) | 1.38 %        | -0.30 pp (better) | 1.81 %    | +0.13 pp (worse)  | 1.79 %    | +0.11 pp (worse)  |
 | 0.75–1.00  | median T2 rel. error | 2.17 %                   | 2.18 %   | +0.01 pp (worse)  | 2.14 %                | -0.03 pp (better) | 2.21 %                | +0.04 pp (worse)  | 2.24 %                | +0.07 pp (worse)  | 2.14 %      | -0.03 pp (better) | 2.22 %                 | +0.05 pp (worse)  | 2.17 %              | -0.00 pp (better) | 2.13 %      | -0.04 pp (better) | 2.21 %          | +0.04 pp (worse)  | 2.23 %    | +0.06 pp (worse)  | 2.24 %    | +0.07 pp (worse)  | 2.24 %            | +0.07 pp (worse)  | 2.30 %          | +0.13 pp (worse)   | 2.35 %                        | +0.18 pp (worse)   | 2.61 %                        | +0.44 pp (worse)  | 2.56 %                        | +0.39 pp (worse)   | 2.45 %                        | +0.28 pp (worse)   | 2.31 %       | +0.14 pp (worse)   | 2.39 %                    | +0.21 pp (worse)   | 2.54 %                    | +0.37 pp (worse)  | 2.40 %                    | +0.23 pp (worse)   | 2.02 %        | -0.15 pp (better) | 2.09 %        | -0.08 pp (better) | 2.26 %    | +0.09 pp (worse)  | 2.26 %    | +0.09 pp (worse)  |
 
-## Data notes
-
-- `snr_ladder` was requested but could not be read: /Users/fatihozkan/Desktop/Thesis_clean/t1t2-detr/results/snr_ladder: no config.yaml, so its config cannot be diffed.
-
 ---
 
 ## How to read this table
@@ -122,13 +118,15 @@ reads as a larger effect than it is.
 `t2_mae_ms` and `w_mae` that `eval._regression_block` computes with `_median()`. This table
 reads the unambiguous aliases instead and labels every such row "absolute error, median". The
 genuine means are reported as separate rows: on the reference run the median T1 absolute error
-is 29.60 ms against a mean of 122.50 ms, a factor of 4.1. That gap is a result in its own
-right, since it says the error is concentrated in a minority of hard voxels.
+is 28.50 ms against a mean of 115.38 ms, a factor of four. That gap is a result in its own
+right, since it says most of the error comes from a minority of hard voxels.
 
-**One seed per arm, so there are no error bars here.** Every run in this table is seed
-20260724, run once, which gives a point estimate and no interval. The measured spread across
-repeated training of the same config is reported in `configs/README.md`; a delta smaller than
-that spread should be reported as within run-to-run variation rather than as an effect.
+**Most arms are one run at one seed, so there are no error bars here.** Every single-change
+arm and every combined model is seed 20260724, run once, which gives a point estimate and no
+interval. The `*_seed<seed>` rows are the seed replicates of the reference, `loss_uniform` and
+`final_uniform_q6`. The measured spread across those repeats is reported in `configs/README.md`.
+A delta smaller than that spread should be reported as run-to-run variation rather than as an
+effect.
 
 **A different test set is a different question.** An arm marked `DIFFERENT DATASET` is scored on
 another voxel family, so its delta mixes the change under test with the difference between two

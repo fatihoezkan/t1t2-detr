@@ -94,4 +94,4 @@ fig.suptitle(f"Where the errors sit in the plane ({RUN}, its own fitted θ; bins
              f" ≥ {MIN_N} compartments)", x=0.01, ha="left", fontsize=BASE, y=1.04)
 fig.tight_layout()
 OUT.parent.mkdir(exist_ok=True)
-fig.savefig(OUT); print("wrote", OUT)
+fig.savefig(OUT); print("wrote", OUT.relative_to(ROOT))

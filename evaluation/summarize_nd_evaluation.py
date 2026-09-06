@@ -1,9 +1,9 @@
 """Collect results/nd_evaluation/*.json into one comparison table.
 
-Writes, into the same directory: nd_metrics_all_models.csv (one row per model, Wirth's table 3
-scheme plus provenance), nd_metrics_table.md (grouped by test set; only rows sharing a test set
-are directly comparable) and paired_deltas.json (paired bootstrap 95 % CIs of mAP@7 against the
-baseline, same-test-set arms only).
+Writes, into the same directory: nd_metrics_all_models.csv (one row per model, the columns of
+Wirth's ND table plus provenance), nd_metrics_table.md (grouped by test set; only rows sharing
+a test set are directly comparable) and paired_deltas.json (paired bootstrap 95 % CIs of mAP@7
+against the baseline, same-test-set arms only).
 
 Usage: PYTHONPATH=.:datagen python evaluation/summarize_nd_evaluation.py [results/nd_evaluation]
 """
@@ -40,8 +40,7 @@ GROUPS = [
 
 
 def load_all(res_dir):
-    """Load saved model evaluations from a results folder."""
-    # every per-run JSON keyed by run name; the deltas file is not a run
+    # every per-run JSON keyed by run name; files without a "map" key are aggregates, not runs
     out = {}
     for p in sorted(Path(res_dir).glob("*.json")):
         if p.name in ("paired_deltas.json",):
@@ -53,7 +52,6 @@ def load_all(res_dir):
 
 
 def row_of(d):
-    """Turn one model's evaluation into a summary table row."""
     e = d["exact_at_threshold"]
     return {
         "model": d["name"],
@@ -78,7 +76,6 @@ def restore_records(d):
 
 def main(res_dir="results/nd_evaluation"):
     """Summarize model evaluations and compare their paired results."""
-    # load every evaluated run
     res_dir = Path(res_dir)
     all_d = load_all(res_dir)
     print(f"loaded {len(all_d)} models: {sorted(all_d)}")

@@ -1,9 +1,10 @@
 """Per-voxel ground truth: (T1, T2) per compartment, Dirichlet weights, and SNR.
 
-Compartments are tissue-agnostic random points with the single constraint T1 > T2; realism is
-not a goal. n_comp is an input, not a draw: every RNG stream is keyed on it, and one file per
-count keeps the splits exactly balanced. Two (T1, T2) sampling modes exist; the default,
-"rejection", is what the reported datasets used. sample_random_compartment derives the marginals.
+Compartments are random points with the single constraint T1 > T2 and no attempt at tissue
+realism. n_comp is given by the caller rather than drawn: every RNG stream is keyed on it, and
+one file per count keeps the splits exactly balanced. Two (T1, T2) sampling modes exist; the
+default, "rejection", is what the reported datasets used. sample_random_compartment derives
+the marginals.
 """
 
 from __future__ import annotations
@@ -77,7 +78,6 @@ def voxel_rng(
     Distinct SeedSequence keys cannot collide the way arithmetic seed offsets can. Streams are
     reproducible for a pinned NumPy version only; the manifest records the version.
     """
-    # five-integer key -> its own independent generator
     return np.random.default_rng(
         np.random.SeedSequence([int(base_seed), int(n_comp), int(split_code), int(voxel_id), int(stream_id)])
     )
@@ -127,7 +127,6 @@ def sample_weights(n_comp: int, rng: np.random.Generator, min_weight: float = MI
     """Weights summing to one, none below min_weight: symmetric Dirichlet rescaled onto the floor."""
     if n_comp * min_weight >= 1.0:
         raise ValueError(f"n_comp * min_weight = {n_comp * min_weight} >= 1.")
-    # flat Dirichlet, then squeezed so every weight is at least min_weight
     raw = rng.dirichlet(np.ones(n_comp))
     return raw * (1.0 - n_comp * min_weight) + min_weight
 
@@ -209,11 +208,11 @@ def sample_voxel_spec(
 ) -> VoxelSpec:
     """Draw the ground truth for one voxel: n_comp compartments, their weights, and an SNR.
 
-    n_comp is supplied, not drawn. `snr` pins the SNR (used by the fixed-SNR ladder); SNR has its
-    own stream, so pinning it leaves the parameter draw identical. `sampling` is not part of the
-    RNG key: the same key under two modes consumes the same uniforms and interprets them
-    differently, so two such datasets are neither identical nor independent. Independent datasets
-    need different base_seed values.
+    n_comp comes from the caller and is never drawn. `snr` pins the SNR (used by the fixed-SNR
+    ladder); SNR has its own stream, so pinning it leaves the parameter draw identical.
+    `sampling` is not part of the RNG key: the same key under two modes consumes the same
+    uniforms and interprets them differently, so two such datasets are neither identical nor
+    independent. Independent datasets need different base_seed values.
     """
     if not 1 <= n_comp <= MAX_COMP:
         raise ValueError(f"n_comp must be in 1..{MAX_COMP}; got {n_comp}")

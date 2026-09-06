@@ -99,4 +99,4 @@ fig.suptitle("Detection and error against true $T_2$ (all $T_1$ pooled)",
              x=0.01, ha="left", fontsize=BASE)
 fig.tight_layout()
 OUT.parent.mkdir(exist_ok=True)
-fig.savefig(OUT); print("wrote", OUT)
+fig.savefig(OUT); print("wrote", OUT.relative_to(ROOT))

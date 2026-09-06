@@ -61,7 +61,7 @@ def score(recs, ngt, T):
 
 
 def score_by_k(recs, ngt, T):
-    """Strict accuracy split by the true compartment count."""
+    """Strict and count accuracy per true compartment count: {"strict": {K: %}, "count": {K: %}}."""
     # totals, strict hits and count hits per true K
     tot, ok, cnt = {}, {}, {}
     for r, n in zip(recs, ngt):

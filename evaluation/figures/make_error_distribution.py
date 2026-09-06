@@ -1,11 +1,12 @@
 """Cumulative distributions of the parameter errors over the whole test set.
 
 ECDFs of the relative T1 error, the relative T2 error and the absolute signal-fraction
-error over every matched compartment of the 9 999 test voxels, for the reference baseline
+error over every matched compartment of the 9,999 test voxels, for the reference baseline
 and the final model, split by the true compartment count. Runs inference for both models
 on the test split (about a minute each on a CPU) and reads results/<run>/{summary.json,
 metrics_detr.json} and the test parquets. Writes figures/19_error_distribution.png and
-results/error_distribution_summary.json. Usage: PYTHONPATH=.:datagen python3 evaluation/figures/make_error_distribution.py
+results/error_distribution_summary.json.
+Usage: PYTHONPATH=.:datagen python3 evaluation/figures/make_error_distribution.py
 """
 import json
 from pathlib import Path
@@ -86,7 +87,7 @@ OUT_JSON.write_text(json.dumps(summary, indent=1))
 
 
 def ecdf(ax, x, **kw):
-    """Plot the percentage of values at or below each value."""
+    """Empirical CDF in percent."""
     x = np.sort(x); ax.plot(x, np.arange(1, len(x) + 1) / len(x) * 100, **kw)
 
 
@@ -118,4 +119,4 @@ axes[0].legend(fontsize=TINY, loc="upper left", ncol=1)
 fig.suptitle("The whole distribution of the parameter errors over the test set: cumulative share of matched compartments below a given error",
              x=0.01, ha="left", fontsize=BASE + 1)
 fig.tight_layout(rect=(0, 0, 1, 0.93))
-fig.savefig(OUT_FIG); print("wrote", OUT_FIG)
+fig.savefig(OUT_FIG); print("wrote", OUT_FIG.relative_to(ROOT))

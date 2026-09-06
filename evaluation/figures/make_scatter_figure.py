@@ -86,4 +86,4 @@ fig.suptitle("Predicted against true, every matched compartment of the test set 
              f"(τ = {TAU:.0%} corridor dashed)", x=0.01, ha="left", fontsize=BASE, y=1.0)
 fig.tight_layout()
 OUT.parent.mkdir(exist_ok=True)
-fig.savefig(OUT); print("wrote", OUT)
+fig.savefig(OUT); print("wrote", OUT.relative_to(ROOT))

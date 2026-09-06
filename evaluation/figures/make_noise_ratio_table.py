@@ -46,12 +46,12 @@ for v, row in test.iterrows():
                      "sigma": row["sigma"], "r": amp / row["sigma"], "snr": row["snr"],
                      **{col: c in found[col][v] for col in RUNS}})
 D = pd.DataFrame(rows)
-# bins used by the figure
+# coarse bins for reading the table by hand; the figure script bins on its own
 D["rbin"] = pd.cut(D.r, [-np.inf, 2, 3, 5, 10, 20, 50, np.inf],
                    labels=["<2", "2-3", "3-5", "5-10", "10-20", "20-50", ">50"])
 D["wbin"] = pd.cut(D.w, [-np.inf, 0.1, 0.3, 0.6, np.inf],
                    labels=["w<0.1", "0.1-0.3", "0.3-0.6", ">0.6"])
 D["snrbin"] = pd.cut(D.snr, [-np.inf, 60, 100, np.inf], labels=["SNR 30-60", "60-100", "100-150"])
 D.to_parquet(OUT, index=False)
-print(f"wrote {OUT}: {len(D)} compartments, found {D.found_reference.mean():.3f} (reference) "
+print(f"wrote {OUT.relative_to(ROOT)}: {len(D)} compartments, found {D.found_reference.mean():.3f} (reference) "
       f"/ {D.found_final.mean():.3f} (final)")

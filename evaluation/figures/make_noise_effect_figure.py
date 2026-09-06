@@ -5,7 +5,9 @@ the compartment's share of the signal. (b) One two-compartment test voxel: the s
 compartment's own signal and what is left of it after the best single-compartment fit, in
 units of sigma. (c) Share of the smaller compartment found in two-compartment voxels, by
 that residual in units of sigma. Reads results/compartment_noise_ratio_test.parquet and the n2
-test parquet; writes figures/20_noise_small_compartments.png and results/separability_k2_test.parquet. Usage: PYTHONPATH=.:datagen python3 evaluation/figures/make_noise_effect_figure.py
+test parquet. Writes figures/20_noise_small_compartments.png and
+results/separability_k2_test.parquet.
+Usage: PYTHONPATH=.:datagen python3 evaluation/figures/make_noise_effect_figure.py
 """
 from pathlib import Path
 
@@ -98,9 +100,8 @@ axB.text(0.99, 0.04, f"$T_1$ {t1_s:.0f} vs {t1_l:.0f} ms, $T_2$ {t2_s:.0f} vs {t
          transform=axB.transAxes, ha="right", va="bottom", fontsize=TINY)
 print(f"example voxel {v}: w_small {w_s:.2f}, amp/sigma {ex.r:.1f}, residual/sigma {ex.res_over_sigma:.2f}, T1 {t1_s:.0f}/{t1_l:.0f}, T2 {t2_s:.0f}/{t2_l:.0f}, SNR {row.snr:.0f}")
 
-# (c) the residual decides
+# (c) found share by the mismatch left after the one-compartment fit, in units of sigma
 edges = [0, 1, 2, 4, 1e9]; labels = ["below $\\sigma$", "$\\sigma$ to $2\\sigma$", "$2\\sigma$ to $4\\sigma$", "above $4\\sigma$"]
-# found share per residual bin
 vals, ns = [], []
 for a, b in zip(edges[:-1], edges[1:]):
     m = (small.res_over_sigma >= a) & (small.res_over_sigma < b); vals.append(100 * small.found_final[m].mean()); ns.append(int(m.sum()))
@@ -111,4 +112,4 @@ axC.set_xlabel("mismatch after fitting one compartment"); axC.set_ylabel("share 
 axC.set_title("(c) the mismatch decides, across all two-compartment voxels")
 fig.suptitle("What the noise does to small compartments (final model, strict rule at its fitted $\\theta$, test set)", x=0.01, ha="left", fontsize=BASE + 1)
 OUT.parent.mkdir(exist_ok=True)
-fig.tight_layout(rect=(0, 0, 1, 0.93)); fig.savefig(OUT); print("wrote", OUT)
+fig.tight_layout(rect=(0, 0, 1, 0.93)); fig.savefig(OUT); print("wrote", OUT.relative_to(ROOT))

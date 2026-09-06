@@ -37,7 +37,6 @@ def _total_limit(data_cfg) -> int | None:
     The cap is stated per path so that a reduced-data run stays balanced across compartment
     counts instead of starving the later files.
     """
-    # per-path cap times the number of training files
     per = data_cfg.train_limit_per_path
     if per is None:
         return None
@@ -81,7 +80,6 @@ def _check_resume_compatible(cfg: ExperimentConfig, results_dir: Path, resume: b
 def set_seed(seed: int) -> None:
     """Seed python, numpy and torch. Makes two runs on the same machine match; it does not
     guarantee bit-identical results across GPUs or torch versions."""
-    # seed all three RNGs
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -96,7 +94,6 @@ def _run_epoch(model, loader, crit, device, opt=None, aux_weight=1.0,
     applied to the final prediction only. The logged "sc" value is the raw mismatch before
     lambda, so runs with different lambdas stay comparable.
     """
-    # train mode when an optimiser is given, eval mode otherwise
     train = opt is not None
     model.train() if train else model.eval()
     # per-batch values of every loss component
@@ -140,7 +137,6 @@ def _run_epoch(model, loader, crit, device, opt=None, aux_weight=1.0,
 
 def _build_scheduler(opt, train_cfg):
     """Set up learning-rate reduction, or keep the rate constant."""
-    # constant learning rate or reduce-on-plateau
     mode = train_cfg.lr_scheduler
     if mode == "constant":
         return None
@@ -159,7 +155,7 @@ def train(cfg: ExperimentConfig, results_dir=None, max_epochs=None, resume=True,
     """Train from a config and return (history, results_dir, best model).
 
     max_epochs overrides the config's epoch count and limit caps the voxels loaded; both are
-    for smoke runs. `log` is injectable so a caller can silence the output.
+    for quick local runs. `log` is injectable so a caller can silence the output.
     """
     # seed, device, results directory
     set_seed(cfg.train.seed)
@@ -176,7 +172,7 @@ def train(cfg: ExperimentConfig, results_dir=None, max_epochs=None, resume=True,
 
     # One normaliser for both splits.
     normalizer = TargetNormalizer.from_config(cfg.data)
-    # train_limit_per_path reduces the training set only; `limit` is the smoke-run cap and
+    # train_limit_per_path reduces the training set only; `limit` is the quick-run cap and
     # applies to everything. Validation stays identical across arms so best_val is comparable.
     # training loader (shuffled) and optional validation loader
     train_loader, _ = make_dataloader(
@@ -325,7 +321,7 @@ def train(cfg: ExperimentConfig, results_dir=None, max_epochs=None, resume=True,
                 f"{bad_epochs} epochs. Best {best_val:.5f} @ epoch {best_epoch + 1}.")
             break
 
-    # Return the best model, not the last epoch.
+    # reload best.pt so the caller evaluates the best epoch rather than the last one
     if best_ckpt.exists():
         model.load_state_dict(torch.load(best_ckpt, map_location=device)["model"])
         log(

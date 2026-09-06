@@ -16,7 +16,6 @@ from t1t2.runs import load_run
 
 
 def analyse(run, device="cpu"):
-    """Measure which query slots are active and what they predict."""
     # unfiltered query table on the test split
     loaded = load_run(Path("results") / run, device)
     cfg, rd, theta = loaded.cfg, loaded.dir, loaded.fitted_threshold
@@ -73,7 +72,8 @@ def analyse(run, device="cpu"):
 
 
 def report(o):
-    """Print query activity, prediction ranges, and duplicate counts."""
+    """Print one row per query slot (firing rate, peak probability, median weight, T1 and T2
+    spread) and the counts of ever- and never-active slots."""
     # one row per slot
     print(f"\n=== {o['run']}   theta={o['theta']:.2f}   {o['n_voxels']} test voxels ===")
     print(f"{'slot':>4} {'active%':>8} {'max prob':>9} {'med w':>7} "

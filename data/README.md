@@ -1,7 +1,7 @@
 # Data
 
-Manifests of the two dataset families the thesis uses. The parquet files (about 800 MB per
-family) are not in the repository; `python main.py data` regenerates them.
+Manifests of the two dataset families the thesis uses. The parquet files (about 60 MB per
+family) are not in the repository; `python main.py data` regenerates them in about a minute.
 
 | family | used by | sampler | seed |
 |---|---|---|---|
@@ -15,8 +15,5 @@ checksum, git commit and library versions of the files that were actually used.
 
 The main family is the data command in the root README. The second is the same command with
 `--out-dir data/t1_loguniform_100k/n$n --seed 3500501 --sampling t1_log_uniform`. The main
-family regenerates exactly under the pinned numpy; the log-uniform family was generated under
-a newer numpy and regenerates in distribution but not voxel for voxel.
-
-`dev/` is the small dataset for `configs/smoke.yaml` (root README, Setup). It is not
-versioned.
+family regenerates exactly under the pinned numpy. The log-uniform family was generated under
+a newer numpy, so it regenerates in distribution but not voxel for voxel.

@@ -1,11 +1,13 @@
 """Score finished runs on the fixed-SNR test sets and plot them against SNR. Run from the repo root.
 
-Rungs share voxels and noise draw, only sigma differs. Per run and rung: strict and count accuracy
-at the validation-calibrated threshold (results/threshold_val/<run>.json) and median relative
-T1/T2 error over matched compartments at the fitted threshold (summary.json), per family (mean,
-min-to-max range over its runs). SNR 20 lies below the training range (30 to 150): written to
-the JSON, left out of the figure and table. Writes summary.json, snr_ladder.png, snr_ladder.tex
-to --out-dir (default results/snr_ladder/). Usage: snr_ladder.py [--family NAME=RUN,RUN] [--replot]
+The rungs hold the same voxels with the same noise draw, only sigma differs. For each run and
+rung the script records strict and count accuracy at the validation-calibrated threshold
+(results/threshold_val/<run>.json) and the median relative T1/T2 error over matched
+compartments at the run's own fitted threshold (summary.json). Runs are grouped into families
+and reported as the mean and the min-to-max range over the family. SNR 20 lies below the
+training range (30 to 150), so it is written to the JSON but left out of the figure and table.
+Writes summary.json, snr_ladder.png and snr_ladder.tex to --out-dir (default
+results/snr_ladder/). Usage: snr_ladder.py [--family NAME=RUN,RUN] [--replot]
 """
 from __future__ import annotations
 
@@ -84,7 +86,6 @@ def evaluate_run(results_dir: Path, run: str, device: str) -> dict:
         s = score(recs, ngt, theta_cal)
         by_k = score_by_k(recs, ngt, theta_cal)["strict"]
         e1, e2 = relative_errors(q, trues, theta_fit)
-        # accuracies at the calibrated theta, errors at the fitted one
         out["rungs"][str(snr)] = {
             "n_voxels": int(len(ngt)),
             "strict_acc": s["voxel_acc"],
@@ -110,7 +111,7 @@ def stack(summary: dict, family: str, key: str, snrs=SNRS_IN_RANGE) -> np.ndarra
 
 
 def draw(summary: dict, out_png: Path) -> None:
-    """Plot model performance across the test noise levels."""
+    """Two rows of panels: the four quantities on top, strict accuracy per K below."""
     # figure style
     plt.rcParams.update({
         "figure.dpi": 120, "savefig.dpi": 300, "savefig.bbox": "tight", "font.size": 9,
@@ -121,7 +122,7 @@ def draw(summary: dict, out_png: Path) -> None:
     fig, axes = plt.subplots(2, 4, figsize=(11.5, 5.6))
 
     def curve(ax, key, title):
-        """Plot each model family's mean and range across noise levels."""
+        """Mean line and min-to-max band per family."""
         for fam in families:
             A = stack(summary, fam, key)
             colour = COLOURS.get(fam)
@@ -154,11 +155,11 @@ def draw(summary: dict, out_png: Path) -> None:
 
 
 def latex_table(summary: dict, out_tex: Path) -> None:
-    """Mean [range] per rung and family, as tabular rows the thesis can \\input."""
+    """Mean [range width] per rung and family, as tabular rows the thesis can \\input."""
     families = list(summary)
 
     def cell(fam, key, i):
-        """Format a family's mean and range as a LaTeX table entry."""
+        """mean [max - min] of one family at rung i."""
         col = stack(summary, fam, key)[:, i]
         return f"{col.mean():.2f} {{\\scriptsize[{col.max() - col.min():.2f}]}}"
 
@@ -176,7 +177,6 @@ def latex_table(summary: dict, out_tex: Path) -> None:
 
 
 def parse_families(items: list[str] | None) -> dict[str, list[str]]:
-    """Read named groups of runs from command-line options."""
     # name=run1,run2 -> {name: [runs]}
     if not items:
         return DEFAULT_FAMILIES
@@ -190,7 +190,6 @@ def parse_families(items: list[str] | None) -> dict[str, list[str]]:
 
 
 def main() -> None:
-    """Evaluate noise robustness and save the tables and plots."""
     # command line
     ap = argparse.ArgumentParser(description="Score finished runs on the fixed-SNR test sets.")
     ap.add_argument("--results-dir", default="results", help="Where the runs live.")

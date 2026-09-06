@@ -12,7 +12,7 @@ import hashlib
 import json
 import os
 import time
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
@@ -79,7 +79,6 @@ def simulate_voxel_signal(
     The noise stream is keyed like the parameter stream but with STREAM_NOISE, so the two are
     independent and both are reproducible from (base_seed, n_comp, split_code, voxel_id).
     """
-    # clean forward signal, then noise from the voxel's own noise stream
     clean = simulate_clean_signal(protocol, spec.t1, spec.t2, spec.w)
     rng = voxel_rng(base_seed, spec.n_comp, split_code, voxel_id, STREAM_NOISE)
     return add_noise(clean, spec.snr, rng, sigma=noise_sigma)
@@ -175,7 +174,6 @@ def generate_one(
     `sampling` is not stored per row; it is constant per family and recorded in the manifest
     under physics.sampling.
     """
-    # one voxel -> one row
     voxel = generate_voxel(
         voxel_id=voxel_id,
         n_comp=n_comp,
@@ -213,7 +211,6 @@ def generate_dataset(
     Two datasets that differ only in `sampling` are not independent samples: the same key
     consumes the same uniforms in both. Independent families need different base_seed values.
     """
-    # one row per voxel id, all with the same n_comp
     if protocol is None:
         protocol = load_protocol()
     rows = [
@@ -272,7 +269,6 @@ class DatasetFamilyConfig:
     sigma_ladder: tuple[float, ...] = (0.05, 0.1, 0.2)
 
     def __post_init__(self) -> None:
-        """Check dataset settings before generating any voxels."""
         # Validate up front so a bad config fails before any voxel is generated.
         if min(self.n_train, self.n_val, self.n_test, self.n_per_snr) < 0:
             raise ValueError("dataset sizes must be nonnegative")
@@ -313,11 +309,6 @@ class DatasetJob:
     noise_sigma: float | None = None
 
 
-def smoke_config(config: DatasetFamilyConfig) -> DatasetFamilyConfig:
-    """Shrink a config to something that finishes in seconds, for a local check."""
-    return replace(config, n_train=2_000, n_val=500, n_test=500, n_per_snr=300)
-
-
 def build_dataset_jobs(config: DatasetFamilyConfig) -> list[DatasetJob]:
     """Build the list of split jobs for one config.
 
@@ -331,7 +322,7 @@ def build_dataset_jobs(config: DatasetFamilyConfig) -> list[DatasetJob]:
     storage rounding by 1/sigma (about 2e-5 at SNR 150). Use atol around 1e-4.
     """
     # absolute-noise mode: the same sigma for train/val/test, one test set per ladder sigma
-    if config.noise_sigma is not None:      # absolute-noise mode
+    if config.noise_sigma is not None:
         s = config.noise_sigma
         jobs = [
             DatasetJob("train", config.n_train, SPLIT_TRAIN, noise_sigma=s),
@@ -361,7 +352,6 @@ def build_dataset_jobs(config: DatasetFamilyConfig) -> list[DatasetJob]:
 
 def _write_parquet_atomic(df: pd.DataFrame, path: Path) -> None:
     """Write to a temporary file and rename, so a crash never leaves a partial parquet in place."""
-    # write next to the target, then rename
     tmp = path.with_name(path.name + ".tmp")
     try:
         df.to_parquet(tmp, index=False)
@@ -376,7 +366,6 @@ def _git_state(repo_dir: Path) -> dict:
     import subprocess
 
     def _run(*args: str) -> str | None:
-        """Read command output, returning None if the command fails."""
         try:
             out = subprocess.run(args, cwd=repo_dir, capture_output=True, text=True, timeout=10)
             return out.stdout.strip() if out.returncode == 0 else None

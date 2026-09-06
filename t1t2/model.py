@@ -20,7 +20,6 @@ class SignalEncoder(nn.Module):
     """
 
     def __init__(self, input_dim: int, hidden_dim: int, fs_dim: int):
-        """Build the layers that turn a signal into features."""
         super().__init__()
         # 64 -> hidden -> hidden -> hidden -> fs_dim
         self.net = nn.Sequential(
@@ -31,7 +30,6 @@ class SignalEncoder(nn.Module):
         )
 
     def forward(self, x):
-        """Turn each input signal into a compact set of features."""
         return self.net(x)
 
 
@@ -39,7 +37,6 @@ class MLPHead(nn.Module):
     """Three-layer MLP used for every prediction head."""
 
     def __init__(self, input_dim: int, hidden_dim: int, output_dim: int):
-        """Build a small network for one prediction task."""
         super().__init__()
         # two hidden layers, linear output
         self.net = nn.Sequential(
@@ -49,7 +46,6 @@ class MLPHead(nn.Module):
         )
 
     def forward(self, x):
-        """Turn query features into prediction values."""
         return self.net(x)
 
 
@@ -63,7 +59,6 @@ class T1T2DETR(nn.Module):
     """
 
     def __init__(self, cfg):
-        """Build the signal encoder, compartment queries, and prediction heads."""
         super().__init__()
         # network sizes from the config
         self.input_dim = cfg.input_dim
@@ -115,7 +110,6 @@ class T1T2DETR(nn.Module):
             self.exist_head = MLPHead(self.fs_dim, self.fs_dim, 1)
 
     def forward(self, X):
-        """Predict compartment properties and existence scores from voxel signals."""
         # encode the signal and tile the learned queries over the batch
         B = X.size(0)
         memory = self.encoder(X).unsqueeze(1)                     # (B, 1, fs_dim)

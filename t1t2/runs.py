@@ -34,7 +34,6 @@ class Run:
     @property
     def fitted_threshold(self) -> float:
         """The existence threshold the run's own evaluation selected on validation."""
-        # read the threshold out of summary.json
         summary = json.loads((self.dir / "summary.json").read_text())
         return float(summary["threshold_calibration"]["selected_threshold"])
 
@@ -48,7 +47,6 @@ class Run:
 
     def predict(self, split="test", limit=None):
         """(query table, true compartments) for a split: the two inputs every metric takes."""
-        # inference over the split, plus the ground truth in the same list format
         ds = self.dataset(split, limit)
         return detr_query_outputs(self.model, ds, self.device, self.normalizer), true_compartments(ds)
 

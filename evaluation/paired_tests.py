@@ -54,8 +54,8 @@ BOOT_SEED = 20260826
 
 
 def load_records(run: str):
-    """Return (records, n_gt, test_paths), or (None, None, None) if not evaluated."""
-    # the per-voxel dump written by run_nd_evaluation.py
+    """The per-voxel dump run_nd_evaluation.py wrote for a run, as (records, n_gt, test_paths),
+    or (None, None, None) if the run was never evaluated."""
     path = ND / f"{run}.json"
     if not path.exists():
         return None, None, None
@@ -158,7 +158,6 @@ def holm(pvalues):
 
 def self_check(ref: str = REFERENCE) -> bool:
     """Confirm the per-voxel rule reproduces the stored aggregates exactly."""
-    # recompute strict/count accuracy and mAP@7 and compare with the stored files
     recs, ngt, _ = load_records(ref)
     if recs is None:
         print(f"[self-check] no records for {ref}", file=sys.stderr)
@@ -193,7 +192,8 @@ def self_check(ref: str = REFERENCE) -> bool:
 
 
 def main() -> int:
-    """Run paired model comparisons or check the statistical helpers."""
+    """Run the paired tests for every arm, or with --self-check confirm that the per-voxel
+    rule reproduces the stored aggregates."""
     # command line
     ap = argparse.ArgumentParser()
     ap.add_argument("arms", nargs="*", default=None)
@@ -301,8 +301,7 @@ def main() -> int:
             "family": "per metric, across arms and both declared thresholds",
         },
         "note": (
-            "Replaces the single-proportion sampling band. Strict and count "
-            "accuracy use McNemar on the shared test voxels; mAP@7 uses a "
+            "Strict and count accuracy use McNemar on the shared test voxels; mAP@7 uses a "
             "paired bootstrap over voxels. Derived from the stored ND records, "
             "so no retraining or re-inference is involved."
         ),

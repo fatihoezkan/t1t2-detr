@@ -23,7 +23,6 @@ class Protocol:
 
     @property
     def n_points(self) -> int:
-        """Return the number of measurements in the protocol."""
         return int(self.ti.shape[0])
 
     def summary(self) -> str:
@@ -38,12 +37,12 @@ class Protocol:
         )
 
 
-#Path to the default ti_te_dict.mat file, relative to this file
+# path to the shipped ti_te_dict.mat, relative to this file
 DEFAULT_MAT_PATH = os.path.normpath(
     os.path.join(os.path.dirname(__file__), "..", "data", "ti_te_dict.mat")
 )
 
-# 
+
 def load_protocol(mat_path: str | None = None) -> Protocol:
     """Load TI, TE and TR from ti_te_dict.mat, preserving the order."""
     # default to the shipped file
@@ -56,7 +55,7 @@ def load_protocol(mat_path: str | None = None) -> Protocol:
     te = np.asarray(d["te"], dtype=np.float64).flatten()
     tr = float(np.asarray(d["tr"]).flatten()[0])
 
-    #guards
+    # guards
     if ti.shape != te.shape:
         raise ValueError(f"TI and TE shape mismatch: {ti.shape} vs {te.shape}")
     if ti.ndim != 1:

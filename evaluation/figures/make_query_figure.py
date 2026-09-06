@@ -29,19 +29,17 @@ mpl.rcParams.update({"figure.dpi": 120, "savefig.dpi": 300, "savefig.bbox": "tig
  "axes.spines.top": False, "axes.spines.right": False, "xtick.direction": "out", "ytick.direction": "out",
  "legend.frameon": False, "axes.grid": False, "figure.facecolor": "white", "axes.facecolor": "white"})
 C_GT, C_NOISE = "#1f4e79", "#b0b0b0"
-QCOL = ["#1f4e79", "#c1670c", "#7b3294", "#2e7d32"]   # one per working query
+QCOL = ["#1f4e79", "#c1670c", "#7b3294", "#2e7d32"]   # one per working query; the reference has 4
 HALO = [pe.Stroke(linewidth=2.4, foreground="white"), pe.Normal()]
 
 
 def loglabels(ax, which="both"):
     """Add readable tick labels to logarithmic axes."""
     def fmt(v, _):
-        """Shorten large tick values using k for thousands."""
         return (f"{v/1000:.1f}".rstrip("0").rstrip(".") + "k") if v >= 1000 else f"{v:g}"
     for axis, (lo, hi) in ([(ax.xaxis, ax.get_xlim())] if which in ("both", "x") else []) + \
                           ([(ax.yaxis, ax.get_ylim())] if which in ("both", "y") else []):
         def locs(subs, n):
-            """Find log-scale ticks within the visible axis limits."""
             L = mticker.LogLocator(subs=subs, numticks=n); L.set_axis(axis)
             return [t for t in L.tick_values(lo, hi) if lo <= t <= hi]
         maj = locs((1., 2., 5.), 10)
@@ -81,9 +79,8 @@ for j in range(Q):
 ax.set_xticks(np.arange(1, Q + 1)); ax.set_xlabel("query"); ax.set_ylabel("voxels where it fires (%)")
 ax.set_ylim(0, 78); ax.set_title("(a) Four of the ten queries do all the work")
 
-# (b) predicted compartment fraction: this is what they split
+# (b) the predicted compartment fraction of each working query when it fires
 ax = fig.add_subplot(gs[0, 2:])
-# predicted weight of each working query when it fires
 data = [P[:, j, 2][E[:, j] >= theta] for j in work]
 bp = ax.boxplot(data, vert=False, widths=0.62, showfliers=False, patch_artist=True,
                 medianprops=dict(color="white", lw=1.6))
@@ -100,16 +97,14 @@ ax.set_xlabel("predicted compartment fraction"); ax.set_xlim(0, 1.04); ax.set_yl
 ax.invert_yaxis()
 ax.set_title("(b) What they do divide up is compartment size")
 
-# (c) where each working query looks in the (T1, T2) plane
+# (c) 2-D histogram of the (T1, T2) predictions of each working query, one panel each
 t1e = np.logspace(np.log10(50), np.log10(4000), 33)
 t2e = np.logspace(np.log10(5), np.log10(600), 33)
-# 2-D histogram of the (T1, T2) predictions of each working query
 H = []
 for j in work:
     m = E[:, j] >= theta
     h, _, _ = np.histogram2d(P[m, j, 0], P[m, j, 1], bins=[t1e, t2e])
     H.append(h / max(h.max(), 1))
-# one panel per working query
 for k, (j, h) in enumerate(zip(work, H)):
     ax = fig.add_subplot(gs[1, k])
     ax.pcolormesh(t1e, t2e, h.T, cmap="YlGnBu", vmin=0, vmax=1, shading="auto")
@@ -133,4 +128,4 @@ fig.text(0.008, 0.475, "(c) Where each working query looks. The filled dot is th
 fig.suptitle(f"Query usage in the reference run, at its threshold $\\theta$ = {theta:.2f}",
              fontsize=BASE, x=0.008, y=0.985, ha="left")
 OUT.parent.mkdir(exist_ok=True)
-fig.savefig(OUT, bbox_inches="tight"); print("wrote", OUT)
+fig.savefig(OUT, bbox_inches="tight"); print("wrote", OUT.relative_to(ROOT))

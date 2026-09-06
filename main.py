@@ -47,9 +47,9 @@ SNR_RUNS = ["baseline_v2_reproduction", "baseline_seed20260725", "baseline_seed2
             "baseline_seed20260727", "loss_uniform", "loss_uniform_seed20260725",
             "loss_uniform_seed20260726", "loss_uniform_seed20260727"]
 
-# Configs that are not runs of their own: smoke is the development config, and
-# final_uniform_q6 is the seed-20260724 run under its family name, carrying the criteria.
-DOC_ONLY = {"smoke", "final_uniform_q6"}
+# The one config that is not a run of its own: final_uniform_q6 is the seed-20260724 run
+# under its family name, carrying the criteria.
+DOC_ONLY = {"final_uniform_q6"}
 
 # The two dataset families exactly as the README states them; the seeds are the ones the
 # shipped manifests record.

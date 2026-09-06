@@ -10,7 +10,7 @@
   "alpha": 0.05,
   "family": "per metric, across arms and both declared thresholds"
  },
- "note": "Replaces the single-proportion sampling band. Strict and count accuracy use McNemar on the shared test voxels; mAP@7 uses a paired bootstrap over voxels. Derived from the stored ND records, so no retraining or re-inference is involved.",
+ "note": "Strict and count accuracy use McNemar on the shared test voxels; mAP@7 uses a paired bootstrap over voxels. Derived from the stored ND records, so no retraining or re-inference is involved.",
  "runs": {
   "loss_uniform": {
    "paired_applicable": true,

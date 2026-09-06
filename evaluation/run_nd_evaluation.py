@@ -103,7 +103,6 @@ def evaluate_run(run_dir, out_dir, device="cpu", limit=None, n_boot=300, log=pri
 
 
 if __name__ == "__main__":
-    # run directory, optional output directory
     run_dir = sys.argv[1]
     out_dir = sys.argv[2] if len(sys.argv) > 2 else "results/nd_evaluation"
     evaluate_run(run_dir, out_dir)

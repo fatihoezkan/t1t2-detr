@@ -32,14 +32,13 @@ RUNS = [("baseline_v2_reproduction", "reference (baseline)"),
 
 
 def collect(run):
-    """Separate found and missed compartments by T2 and signal fraction."""
+    """(found, missed) lists of (T2, w) over every true compartment, plus the run's config."""
     # inference, then the ND rule per voxel
     loaded = load_run(ROOT / "results" / run)
     cfg, spans, thr = loaded.cfg, loaded.spans, loaded.fitted_threshold
     q, all_trues = loaded.predict("test")
     P = np.asarray(q["params"]); E = np.asarray(q["exist_prob"])
     F, M = [], []
-    # (T2, w) of every compartment, split by found or missed
     for i, trues in enumerate(all_trues):
         recs = ndm.voxel_records(P[i], E[i], trues, spans, TAU, exist_thresh=thr)
         hit = {r["gt"] for r in recs if r["gt"] is not None}
@@ -80,4 +79,4 @@ h, l = axes[0].get_legend_handles_labels()
 fig.legend(h, l, loc="upper center", ncol=3, fontsize=SMALL, markerscale=4,
            bbox_to_anchor=(0.5, 0.0))
 OUT.parent.mkdir(exist_ok=True)
-fig.savefig(OUT); print("wrote", OUT)
+fig.savefig(OUT); print("wrote", OUT.relative_to(ROOT))

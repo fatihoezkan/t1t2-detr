@@ -6,7 +6,6 @@ import torch
 
 def get_device(prefer: str | None = None) -> torch.device:
     """Return the torch device. An explicit name ("cuda", "cpu", "mps") wins over auto-detection."""
-    # an explicit choice wins
     if prefer:
         return torch.device(prefer)
     # otherwise CUDA, then Apple MPS, then CPU
@@ -20,7 +19,6 @@ def get_device(prefer: str | None = None) -> torch.device:
 
 def device_info() -> str:
     """One-line device description for the run log."""
-    # name of the accelerator for the log line
     if torch.cuda.is_available():
         return f"cuda ({torch.cuda.get_device_name(0)})"
     mps = getattr(torch.backends, "mps", None)

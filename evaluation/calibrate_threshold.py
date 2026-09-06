@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Calibrate the existence threshold per run on validation, then read test accuracy at it.
 
-Runs peak at different thresholds (0.64 to 0.95 measured), so one shared theta is not neutral.
+Runs peak at different thresholds (0.65 to 0.95 measured), so one shared theta is not neutral.
 Per run, theta is swept over threshold_sweep.GRID on validation, the argmax of strict voxel
 accuracy is taken, and that theta is applied unchanged to test; no test data enters the choice.
 Strict accuracy has an interior optimum, whereas the F1 in run_nd_evaluation.py saturates at

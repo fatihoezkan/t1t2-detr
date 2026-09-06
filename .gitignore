@@ -1,8 +1,7 @@
-# Datasets are reproducible from datagen/ (commands in the README) and are about 800 MB per
+# Datasets are reproducible from datagen/ (commands in the README) and are about 60 MB per
 # family, so only the manifests are versioned. They record the seeds, ranges and library
 # versions that produced each family.
 /data/**/*.parquet
-/data/dev/
 
 # The metrics of every run the thesis reports are versioned under results/, and so are the
 # checkpoints of the two models the thesis is about. The other 24 checkpoints ship as a
@@ -19,10 +18,8 @@
 !/results/nd_evaluation/paired_deltas.json
 !/results/nd_evaluation/tables_2d_3d.json
 /results/_scratch/
-/results/smoke/
 
 __pycache__/
-.pytest_cache/
 *.py[cod]
 .venv/
 venv/
@@ -32,3 +29,6 @@ venv/
 
 # inference cache of the thesis notebook
 /notebooks/.cache_visuals/
+
+# Claude Code session files and worktrees
+/.claude/

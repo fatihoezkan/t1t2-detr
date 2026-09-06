@@ -28,13 +28,11 @@ class TargetNormalizer:
     """
 
     def __init__(self, t1_min=100.0, t1_max=7000.0, t2_min=5.0, t2_max=4000.0):
-        """Set the millisecond bounds that map onto 0 and 1."""
         self.t1_min, self.t1_max = float(t1_min), float(t1_max)
         self.t2_min, self.t2_max = float(t2_min), float(t2_max)
 
     @classmethod
     def from_config(cls, data_cfg) -> "TargetNormalizer":
-        """Build a normalizer from the data settings."""
         return cls(data_cfg.t1_min, data_cfg.t1_max, data_cfg.t2_min, data_cfg.t2_max)
 
     def _fwd(self, x, lo, hi, clip):
@@ -48,24 +46,19 @@ class TargetNormalizer:
 
     def _inv(self, y, lo, hi):
         """[0, 1] back to milliseconds, the exact inverse of _fwd."""
-        # undo the log-min-max map
         y = np.asarray(y, dtype=np.float64)
         return np.exp(y * (np.log(hi) - np.log(lo)) + np.log(lo))
 
     def normalize_t1(self, t1, clip=True):
-        """Scale T1 values into the model's target range."""
         return self._fwd(t1, self.t1_min, self.t1_max, clip)
 
     def normalize_t2(self, t2, clip=True):
-        """Scale T2 values into the model's target range."""
         return self._fwd(t2, self.t2_min, self.t2_max, clip)
 
     def denormalize_t1(self, x):
-        """Convert scaled T1 values back to milliseconds."""
         return self._inv(x, self.t1_min, self.t1_max)
 
     def denormalize_t2(self, x):
-        """Convert scaled T2 values back to milliseconds."""
         return self._inv(x, self.t2_min, self.t2_max)
 
 
@@ -90,10 +83,10 @@ def _normalize_signal(X: np.ndarray) -> np.ndarray:
 def infer_max_comp(df: pd.DataFrame) -> int:
     """Read the width of the ground-truth table from the column names.
 
-    This used to be a config field. A stale `max_comp: 3` on four-compartment data gave a
-    model that could not count past three: slicing four columns out of a three-column array
-    returns three without an error, and the metrics still looked plausible. Reading the width
-    from the data removes that failure mode.
+    The width comes from the data on purpose. When it was a config field, a stale
+    `max_comp: 3` on four-compartment data gave a model that could not count past three:
+    slicing four columns out of a three-column array returns three without an error, and the
+    metrics still looked plausible.
     """
     # collect the slot indices of each column family (T1_1, T1_2, ...)
     idx = {}
@@ -125,7 +118,7 @@ def _read_frames(paths, limit: int | None) -> pd.DataFrame:
 
     `limit` is a total across all paths, split evenly between them. A plain head slice
     would spend the whole budget on the first file, and since the files are split by
-    compartment count a smoke run would then see only single-compartment voxels.
+    compartment count a capped run would then see only single-compartment voxels.
     """
     # accept a single path or a list
     paths = [paths] if isinstance(paths, (str, Path)) else list(paths)
@@ -155,7 +148,7 @@ class VoxelDataset(Dataset):
 
     Everything is loaded up front; the splits fit in RAM and training is faster for it.
     A list of paths is concatenated, which is how the per-count files become one balanced
-    dataset. `limit` caps the number of voxels for smoke runs.
+    dataset. `limit` caps the number of voxels for quick local runs.
     """
 
     def __init__(self, path, cfg, normalizer: TargetNormalizer | None = None, limit: int | None = None):
@@ -203,17 +196,14 @@ class VoxelDataset(Dataset):
         self.n_comp = torch.from_numpy(n_comp.astype(np.int16))
 
     def __len__(self) -> int:
-        """Return the number of voxels in the dataset."""
         return self.X.shape[0]
 
     def __getitem__(self, i):
-        """Get one voxel's signal, targets, and compartment count."""
         return self.X[i], self.y[i], self.n_comp[i]
 
 
 def make_dataloader(path, cfg, batch_size, shuffle, normalizer=None, num_workers=0, limit=None):
     """Build a DataLoader and return it with its dataset (evaluation needs the raw targets)."""
-    # dataset in memory, loader on top of it
     ds = VoxelDataset(path, cfg, normalizer, limit=limit)
     loader = DataLoader(ds, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
     return loader, ds

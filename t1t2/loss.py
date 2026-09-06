@@ -35,7 +35,6 @@ class HungarianLoss(nn.Module):
     """
 
     def __init__(self, cfg):
-        """Set how much each prediction error contributes to the loss."""
         super().__init__()
         # loss term weights
         self.t1_w = cfg.t1_weight
@@ -50,7 +49,6 @@ class HungarianLoss(nn.Module):
             )
 
     def forward(self, y_pred, y_true, n_comp):
-        """Match predictions to true compartments and calculate their errors."""
         # batch size, query count and the number of regression targets
         device = y_pred.device
         B, n_queries, _ = y_pred.shape
@@ -130,7 +128,7 @@ class HungarianLoss(nn.Module):
 
         # 5. Reduce the matched-pair errors to one number per voxel.
         def _per_voxel_mean(vals):
-            """Average matched errors separately for each voxel."""
+            """mean(e) per voxel."""
             s = torch.zeros(B, device=device).index_add_(0, bidx, vals)
             c = torch.zeros(B, device=device).index_add_(0, bidx, torch.ones_like(vals))
             return s / c.clamp(min=1.0)

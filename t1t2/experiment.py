@@ -68,7 +68,6 @@ def run_experiment(config_path, results_dir=None, max_epochs=None, limit=None,
     }
 
     # Evaluate on the test split, falling back to validation and then training if absent.
-    # evaluation setup
     test_path = cfg.data.test_path or cfg.data.val_path or cfg.data.train_path
     normalizer = TargetNormalizer.from_config(cfg.data)
     device = get_device(cfg.train.device)
@@ -165,7 +164,6 @@ def _snr_ladder_paths(test_path) -> dict:
 
 
 def main():
-    """Train and evaluate the experiment chosen on the command line."""
     # command line
     ap = argparse.ArgumentParser(description="Train and evaluate one T1T2-DETR experiment.")
     ap.add_argument("--config", required=True, help="Path to the experiment YAML.")

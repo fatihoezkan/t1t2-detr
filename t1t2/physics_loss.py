@@ -2,8 +2,9 @@
 
 The prediction is pushed back through the forward model that produced the data and the
 mismatch with a target signal is penalised (signal -> model -> compartments -> physics ->
-signal). It sits next to the Hungarian loss, not in its place: the Hungarian term supervises
-parameters given a matching, this one supervises the whole set and never matches anything.
+signal). It is added to the Hungarian loss rather than replacing it. The Hungarian term
+scores parameters given a matching. This term scores the whole predicted set through the
+signal it produces and never matches anything.
 
 Design choices:
   * Gating is soft. Every query contributes w_q * sigmoid(exist_logit_q), so the term is
@@ -32,7 +33,6 @@ _TARGETS = ("noisy", "clean")
 
 def _denorm_torch(x: torch.Tensor, lo: float, hi: float) -> torch.Tensor:
     """Torch counterpart of TargetNormalizer._inv: [0, 1] back to milliseconds."""
-    # inverse of the log-min-max map
     llo, lhi = math.log(lo), math.log(hi)
     return torch.exp(llo + x * (lhi - llo))
 
@@ -56,7 +56,6 @@ class SignalConsistencyLoss(nn.Module):
     """
 
     def __init__(self, data_cfg, loss_cfg, protocol: Protocol | None = None):
-        """Set the signal target, protocol, and scaling for the physics loss."""
         super().__init__()
         # which signal the resynthesis is compared against
         self.target = loss_cfg.signal_consistency_target
@@ -93,7 +92,6 @@ class SignalConsistencyLoss(nn.Module):
             return _signal_norm_torch(s)
 
     def forward(self, y_pred, X, y_true):
-        """Measure how far the reconstructed signal is from its target."""
         # resynthesise, pick the target, compare
         s_hat = self.synthesize(y_pred)
         tgt = X if self.target == "noisy" else self._clean_target(y_true)

@@ -1,9 +1,10 @@
 # Data generation
 
-All training data is simulated; no public T1-T2 correlation dataset exists at this density.
-The compartments are random points in (T1, T2) space subject only to T1 > T2, with no tissue
-prototypes, on purpose: a realistic tissue prior would let the model recite the prior instead
-of reading the signal. Results on this data therefore do not establish in-vivo performance.
+All training data is simulated, because no public T1-T2 correlation dataset exists at this
+density. The compartments are random points in (T1, T2) space subject only to T1 > T2. There
+are no tissue prototypes on purpose: a realistic tissue prior would let the model recite the
+prior instead of reading the signal. Results on this data therefore say nothing about
+performance on real scans.
 
 | file | what it does |
 |---|---|
@@ -40,14 +41,15 @@ rectangle (T1 from 50 to 3500 ms, T2 from 5 to 500 ms). Two samplers, chosen wit
   [log T2_min, min(log T2_max, log T1)]. The T1 marginal is exactly log-uniform, but the T2
   density piles up at small T2.
 
-Neither mode can flatten both marginals; the constraint forbids it. Coverage confounds any
-plot of error against T1 or T2, which is why the mode is recorded in each `manifest.json`
-under `physics.sampling`. The shipped `t1_3500_t2_500_100k` family predates that field and
-used `rejection`; the `data_loguniform` arm trains on the other mode.
+No sampling mode can make both marginals flat, because the T2 < T1 constraint rules it out.
+Coverage therefore confounds any plot of error against T1 or T2, which is why the mode is
+recorded in each `manifest.json` under `physics.sampling`. The shipped `t1_3500_t2_500_100k`
+family predates that field and used `rejection`. The `data_loguniform` arm trains on the
+other mode.
 
-Weights come from a symmetric Dirichlet rescaled so that every compartment has at least 5 %;
-below that it is invisible in the signal. The compartment count is fixed per file, which is
-what makes the per-count splits exactly balanced.
+Weights come from a symmetric Dirichlet rescaled so that every compartment has at least 5 %
+of the signal. Below that a compartment is invisible in the signal anyway. The compartment
+count is fixed per file, which is what makes the per-count splits exactly balanced.
 
 ## Reproducibility
 
@@ -66,11 +68,8 @@ pinned in `requirements.txt`.
 for n in 1 2 3; do
   PYTHONPATH=.:datagen python datagen/run_generator.py --n-comp $n --out-dir data/<family>/n$n
 done
-
-# tiny files, for a quick check
-PYTHONPATH=.:datagen python datagen/run_generator.py --n-comp 2 --smoke --out-dir data/smoke/n2
 ```
 
-Each family writes `train`, `val`, `test` and `test_snr{20,40,60,100,150}`; SNR 20 is below
+Each family writes `train`, `val`, `test` and `test_snr{20,40,60,100,150}`. SNR 20 is below
 the training range of 30 to 150 and is reported as extrapolation. `--seed` has to differ
 between two families that are meant to be independent draws.

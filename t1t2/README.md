@@ -34,8 +34,8 @@ open and the signal comes out over-predicted, so the weight is ramped in over th
 epochs. The resynthesised signal gets the same per-voxel peak normalisation as the input.
 The target is `noisy` (the measured input, needs no labels) or `clean` (the noise-free
 signal of the true parameters, an upper bound only a simulation can provide). MSE is the
-right likelihood because the signals keep their sign; the Rician caveat applies to
-magnitude data only.
+right likelihood because the signals keep their sign. The Rician caveat only applies to
+magnitude data.
 
-Both arms, `configs/physics_noisy.yaml` and `configs/physics_clean.yaml`, came out flat;
-the numbers are in [configs/README.md](../configs/README.md#the-physics-term).
+Both arms, `configs/physics_noisy.yaml` and `configs/physics_clean.yaml`, came out flat.
+The numbers are in [configs/README.md](../configs/README.md#the-physics-term).
