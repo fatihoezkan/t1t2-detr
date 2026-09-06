@@ -42,6 +42,13 @@ STAGES = ("data", "train", "evaluate", "aggregate", "figures", "notebook")
 REFERENCE = "baseline_v2_reproduction"
 FINAL = "loss_uniform"
 
+# The runs the notebook draws: the reference, the final model and the arms of its per-arm
+# galleries. Each needs its checkpoint and its per-voxel ND dump from the evaluate stage.
+NOTEBOOK_RUNS = ["baseline_v2_reproduction", "loss_uniform", "exist_weight_03", "physics_clean",
+                 "physics_noisy", "queries_4", "queries_6", "decoder_2", "decoder_6",
+                 "exist_head_shared", "aux_loss", "baseline_v3", "baseline_v3_no_sqrt",
+                 "baseline_v3_no_physics", "baseline_v4", "final_uniform_q6_seed20260724"]
+
 # The seed families evaluation/snr_ladder.py scores (its DEFAULT_FAMILIES); the list mirrors it.
 SNR_RUNS = ["baseline_v2_reproduction", "baseline_seed20260725", "baseline_seed20260726",
             "baseline_seed20260727", "loss_uniform", "loss_uniform_seed20260725",
@@ -203,11 +210,15 @@ def figures_stage():
 
 def notebook_stage():
     # Executed in place under a real kernel; the notebook's first cell moves to the repository
-    # root itself, and no cell has a time limit because two of them run inference.
+    # root itself, and no cell has a time limit because two of them run inference. Part 2
+    # scores its panels at the thresholds stored in the ND dumps, so those must exist.
+    evaluated = "run `python main.py evaluate` first"
+    needs = [checkpoint(r) for r in NOTEBOOK_RUNS] + [
+        (RESULTS / "nd_evaluation" / f"{r}.json", evaluated) for r in NOTEBOOK_RUNS]
     yield Step("notebook",
                [PY, "-m", "jupyter", "nbconvert", "--to", "notebook", "--execute", "--inplace",
                 "--ExecutePreprocessor.timeout=-1", "notebooks/thesis.ipynb"],
-               [ROOT / "notebooks" / "thesis.ipynb"], [checkpoint(REFERENCE), checkpoint(FINAL)])
+               [ROOT / "notebooks" / "thesis.ipynb"], needs)
 
 
 # ---------------------------------------------------------------------------------------

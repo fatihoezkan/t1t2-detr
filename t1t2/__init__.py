@@ -8,4 +8,4 @@ the candidates carries no meaning.
 Entry point: python -m t1t2.experiment --config <yaml>
 """
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"

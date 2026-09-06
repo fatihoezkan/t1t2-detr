@@ -63,7 +63,7 @@ Download the zip and unpack it at the repository root. Every file lands in
 the release page in a browser and unzipping it in the repository folder does the same.
 
 ```bash
-curl -L -o checkpoints_best.zip https://github.com/fatihoezkan/t1t2-detr/releases/download/v1.1.0/checkpoints_best.zip
+curl -L -o checkpoints_best.zip https://github.com/fatihoezkan/t1t2-detr/releases/download/v1.2.0/checkpoints_best.zip
 unzip -o checkpoints_best.zip
 python main.py --dry-run        # reports no missing checkpoint once every run has one
 ```
@@ -127,7 +127,7 @@ PYTHONPATH=.:datagen python evaluation/run_nd_evaluation.py results/loss_uniform
 PYTHONPATH=.:datagen python evaluation/calibrate_threshold.py loss_uniform
 PYTHONPATH=.:datagen python evaluation/compare_experiments.py --all
 
-# notebook
+# notebook, after the evaluate stage has run for every arm it draws
 jupyter nbconvert --to notebook --execute --inplace --ExecutePreprocessor.timeout=-1 notebooks/thesis.ipynb
 ```
 
