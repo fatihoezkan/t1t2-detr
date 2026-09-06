@@ -4,10 +4,10 @@
     python main.py                                 every stage, in order
     python main.py evaluate figures                only the named stages
     python main.py evaluate --runs loss_uniform    restrict the per-run stages (train, evaluate)
-    python main.py --force tables                  redo the named stages even if their outputs exist
+    python main.py --force figures                 redo the named stages even if their outputs exist
     python main.py --dry-run                       print the plan and run nothing
 
-Stages, in order: data, train, evaluate, aggregate, figures, tables, notebook. Every step is
+Stages, in order: data, train, evaluate, aggregate, figures, notebook. Every step is
 one of the existing scripts, run as a subprocess from the repository root with
 PYTHONPATH=.:datagen; this file only orders them and checks their inputs and outputs. A step
 is skipped when everything it writes already exists, so on a fresh clone with the release
@@ -15,9 +15,9 @@ checkpoints unpacked, `python main.py` regenerates the derived files and touches
 data nor the trained runs. A failing step stops the pipeline; rerunning continues from it.
 
 The train stage is the 26 runs of the matrix, about half an hour each on an A100. On a CPU
-it is not practical: submit slurm/train.slurm per config instead and run the other stages
-afterwards. The notebook's last cell runs the figure and table scripts once more by itself,
-so the notebook stage repeats about ten minutes of work the two stages before it did.
+it is not practical: run `python -m t1t2.experiment --config <yaml>` in your cluster's job
+script instead and run the other stages afterwards. The notebook's last cell runs the figure
+scripts once more by itself, so the notebook stage repeats the work of the figures stage.
 """
 from __future__ import annotations
 
@@ -36,24 +36,17 @@ import yaml
 ROOT = Path(__file__).resolve().parent
 RESULTS = ROOT / "results"
 FIGURES = ROOT / "figures"
-TABLES = ROOT / "tables"
 PY = sys.executable
 ENV = dict(os.environ, PYTHONPATH=f"{ROOT}:{ROOT / 'datagen'}")
-STAGES = ("data", "train", "evaluate", "aggregate", "figures", "tables", "notebook")
+STAGES = ("data", "train", "evaluate", "aggregate", "figures", "notebook")
 
 REFERENCE = "baseline_v2_reproduction"
 FINAL = "loss_uniform"
 
-# The seed families that evaluation/snr_ladder.py (DEFAULT_FAMILIES) and
-# evaluation/tables/build_review_stats.py (FAMILIES) score; the lists mirror those scripts.
+# The seed families evaluation/snr_ladder.py scores (its DEFAULT_FAMILIES); the list mirrors it.
 SNR_RUNS = ["baseline_v2_reproduction", "baseline_seed20260725", "baseline_seed20260726",
             "baseline_seed20260727", "loss_uniform", "loss_uniform_seed20260725",
             "loss_uniform_seed20260726", "loss_uniform_seed20260727"]
-REVIEW_RUNS = SNR_RUNS + [f"final_uniform_q6_seed2026072{d}" for d in "4567"]
-# The single-change arms evaluation/tables/build_strict_tables.py writes one table each for.
-STRICT_ARMS = ["loss_uniform", "data_loguniform", "queries_6", "queries_4", "aux_loss",
-               "exist_weight_03", "decoder_2", "decoder_6", "exist_head_shared",
-               "physics_clean", "physics_noisy"]
 
 # Configs that are not runs of their own: smoke is the development config, and
 # final_uniform_q6 is the seed-20260724 run under its family name, carrying the criteria.
@@ -134,7 +127,7 @@ def train_stage(runs: list[str]):
                    needs=[(ROOT / p, "run `python main.py data` first") for p in paths])
 
 
-def evaluate_stage(runs: list[str], force: bool):
+def evaluate_stage(runs: list[str]):
     for name in runs:
         ck = [checkpoint(name)]
         yield Step(f"nd-evaluation {name}",
@@ -147,14 +140,6 @@ def evaluate_stage(runs: list[str], force: bool):
         if name == REFERENCE:
             yield Step(f"query-analysis {name}", [PY, "evaluation/query_analysis.py", name],
                        [RESULTS / name / "query_analysis.json"], ck)
-
-    # One JSON holds the 2D/3D scores of every run; only the runs not yet in it are scored.
-    table = RESULTS / "nd_evaluation" / "tables_2d_3d.json"
-    have = json.loads(table.read_text()) if table.exists() else {}
-    missing = [r for r in runs if r not in have]
-    todo = runs if force else missing
-    yield Step("2d-3d-table", [PY, "evaluation/tables/build_2d_3d_tables.py", *todo], [table],
-               needs=[checkpoint(r) for r in todo], done=lambda: not missing)
 
 
 def aggregate_stage(runs: list[str]):
@@ -175,26 +160,13 @@ def aggregate_stage(runs: list[str]):
                                                      "snr_ladder.tex")],
                [checkpoint(r) for r in SNR_RUNS]
                + [(RESULTS / "threshold_val" / f"{r}.json", evaluated) for r in SNR_RUNS])
-    # The review statistics cache every run's raw query table next to them; the error
-    # distribution figure reads those caches, so they count as outputs here. A checkpoint is
-    # needed only for a run whose cache is not there yet.
-    caches = {r: RESULTS / f"_review_cache_{r}.npz" for r in REVIEW_RUNS}
-    yield Step("review-stats", [PY, "evaluation/tables/build_review_stats.py"],
-               [RESULTS / "review_stats.json", *caches.values()],
-               [checkpoint(r) for r, c in caches.items() if not c.exists()]
-               + [(RESULTS / "threshold_val" / f"{r}.json", evaluated) for r in REVIEW_RUNS])
     yield Step("noise-ratio-table", [PY, "evaluation/figures/make_noise_ratio_table.py"],
                [RESULTS / "compartment_noise_ratio_test.parquet"],
-               [(nd / f"{r}.json", "run `python main.py evaluate` first")
-                for r in (REFERENCE, FINAL)])
-    yield Step("runs-readme", [PY, "evaluation/tables/build_runs_readme.py"],
-               [RESULTS / "README.md"])
+               [(nd / f"{r}.json", evaluated) for r in (REFERENCE, FINAL)])
 
 
 def figures_stage():
     both = [checkpoint(REFERENCE), checkpoint(FINAL)]
-    cache = [(RESULTS / f"_review_cache_{r}.npz", "run `python main.py aggregate` first")
-             for r in (REFERENCE, FINAL)]
     ratio = [(RESULTS / "compartment_noise_ratio_test.parquet",
               "run `python main.py aggregate` first")]
     # (script and arguments, files written, files needed), in evaluation/figures/README.md order.
@@ -210,7 +182,7 @@ def figures_stage():
         (["make_missed_scatter.py"], [FIGURES / "17_missed_scatter.png"], both),
         (["make_error_distribution.py"],
          [FIGURES / "19_error_distribution.png", RESULTS / "error_distribution_summary.json"],
-         cache),
+         both),
         (["make_noise_effect_figure.py"],
          [FIGURES / "20_noise_small_compartments.png", RESULTS / "separability_k2_test.parquet"],
          ratio),
@@ -219,22 +191,6 @@ def figures_stage():
     for args, outputs, needs in plan:
         yield Step(f"figure {' '.join(args)}",
                    [PY, f"evaluation/figures/{args[0]}", *args[1:]], outputs, needs)
-
-
-def tables_stage():
-    # In evaluation/tables/README.md order; the 2D/3D table, the review statistics and the
-    # runs README are produced by the evaluate and aggregate stages.
-    plan = [
-        ("build_strict_tables.py", ["tab_matrix.tex"] + [f"arms/{r}.tex" for r in STRICT_ARMS]),
-        ("build_baseline_tables.py", ["tab_baseline_perK.tex", "tab_seed_spread.tex"]),
-        ("build_progression_table.py", ["tab_progression.tex"]),
-        ("build_final_model_table.py", ["tab_final_model.tex"]),
-        ("build_criteria_table.py", ["tab_criteria.tex"]),
-        ("build_nd_table.py", ["tab_nd.tex"]),
-    ]
-    for script, outputs in plan:
-        yield Step(f"table {script}", [PY, f"evaluation/tables/{script}"],
-                   [TABLES / o for o in outputs])
 
 
 def notebook_stage():
@@ -296,7 +252,7 @@ def main(argv=None) -> None:
         ap.error("stage names go before --runs, e.g. `python main.py evaluate --runs loss_uniform`")
     if a.force and not a.stages:
         ap.error("--force with no stage would regenerate both dataset families and retrain all "
-                 "26 runs; name the stages to redo, e.g. `python main.py --force figures tables`")
+                 "26 runs; name the stages to redo, e.g. `python main.py --force figures`")
     runs = a.runs or list(CONFIGS)
     bad = sorted(set(runs) - set(CONFIGS))
     if bad:
@@ -305,10 +261,9 @@ def main(argv=None) -> None:
     build = {
         "data": lambda: data_stage(a.force),
         "train": lambda: train_stage(runs),
-        "evaluate": lambda: evaluate_stage(runs, a.force),
+        "evaluate": lambda: evaluate_stage(runs),
         "aggregate": lambda: aggregate_stage(runs),
         "figures": figures_stage,
-        "tables": tables_stage,
         "notebook": notebook_stage,
     }
     wanted = a.stages or list(STAGES)

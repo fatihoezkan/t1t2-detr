@@ -21,7 +21,5 @@ first run; delete it to force a re-run. Part 3 reads only `results/` and works o
 clone.
 
 Figures 01 to 10 and 21 of the thesis and `figures/arms/` are written by the notebook itself.
-Its last cell reruns `evaluation/snr_ladder.py`, every script under `evaluation/figures/` and
-the `evaluation/tables/` scripts that write `tables/*.tex` when the checkpoints are present,
-so an execution also refreshes `figures/` and `tables/`. It does not run
-`build_2d_3d_tables.py`, `build_review_stats.py` or `build_runs_readme.py`; `main.py` does.
+Its last cell reruns `evaluation/snr_ladder.py` and every script under `evaluation/figures/`
+when the checkpoints are present, so an execution also refreshes `figures/`.

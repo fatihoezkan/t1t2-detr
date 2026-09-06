@@ -16,7 +16,7 @@ way for every run; `main.py` at the repository root runs them in order.
 | `paired_tests.py` | McNemar and paired-bootstrap tests of every arm against the reference |
 | `snr_ladder.py` | the fixed-SNR figure and table |
 | `query_analysis.py` | per-query usage of one run |
-| `figures/`, `tables/` | one script per thesis figure and table; each folder's README gives the order |
+| `figures/` | one script per thesis figure; its README gives the order |
 
 ## What counts as a hit
 
@@ -126,7 +126,7 @@ of four, which says the error is concentrated in a minority of hard voxels.
 
 ## Running it
 
-`python main.py evaluate aggregate figures tables notebook` from the repository root runs
+`python main.py evaluate aggregate figures notebook` from the repository root runs
 everything below in order and skips what already exists. One by one:
 
 ```bash
@@ -148,9 +148,8 @@ PYTHONPATH=.:datagen python evaluation/compare_experiments.py --all
 # the reference and the final model on the fixed-SNR test sets, as a figure and a table
 PYTHONPATH=.:datagen python evaluation/snr_ladder.py
 
-# every thesis figure and every thesis table (see the README in each folder for the order)
+# every thesis figure (evaluation/figures/README.md gives the order)
 PYTHONPATH=.:datagen python evaluation/figures/<script>.py
-PYTHONPATH=.:datagen python evaluation/tables/<script>.py
 
 # the executed notebook: data figures, paired voxel examples, every results table
 jupyter nbconvert --to notebook --execute --inplace --ExecutePreprocessor.timeout=-1 notebooks/thesis.ipynb

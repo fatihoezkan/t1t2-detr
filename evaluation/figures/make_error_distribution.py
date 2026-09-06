@@ -2,8 +2,8 @@
 
 ECDFs of the relative T1 error, the relative T2 error and the absolute signal-fraction
 error over every matched compartment of the 9 999 test voxels, for the reference baseline
-and the final model, split by the true compartment count. Reads the cached query outputs
-results/_review_cache_<run>.npz (no inference needed), results/<run>/{summary.json,
+and the final model, split by the true compartment count. Runs inference for both models
+on the test split (about a minute each on a CPU) and reads results/<run>/{summary.json,
 metrics_detr.json} and the test parquets. Writes figures/19_error_distribution.png and
 results/error_distribution_summary.json. Usage: PYTHONPATH=.:datagen python3 evaluation/figures/make_error_distribution.py
 """
@@ -25,6 +25,7 @@ os.chdir(ROOT)
 
 from t1t2.config import load_config  # noqa: E402
 from t1t2.eval import _match  # noqa: E402
+from t1t2.runs import load_run  # noqa: E402
 
 RESULTS = ROOT / "results"
 BASE, SMALL, TINY = 9, 8, 7
@@ -54,14 +55,14 @@ band2 = (100 * (1 - np.exp(-0.07 * span2)), 100 * (np.exp(0.07 * span2) - 1))
 
 data, summary = {}, {}
 for run, label, col in RUNS:
-    z = np.load(RESULTS / f"_review_cache_{run}.npz")
-    P, E = z["params"], z["exist_prob"]
-    thr = float(json.load(open(RESULTS / run / "summary.json"))["threshold_calibration"]["selected_threshold"])
-    # The count accuracy recomputed from the cache is checked against the stored metrics
-    # to make sure the cache rows are in test-set order.
+    loaded = load_run(RESULTS / run)
+    q, _ = loaded.predict("test")
+    P, E, thr = q["params"], q["exist_prob"], loaded.fitted_threshold
+    # The count accuracy recomputed here is checked against the stored metrics to make sure
+    # the predictions line up with the test set.
     stored = json.load(open(RESULTS / run / "metrics_detr.json"))["count_accuracy"]
     n_pred = (E >= thr).sum(1); cacc = float((n_pred == K).mean())
-    assert abs(cacc - stored) < 2e-3, f"{run}: cache order check failed {cacc:.4f} vs stored {stored:.4f}"
+    assert abs(cacc - stored) < 2e-3, f"{run}: order check failed {cacc:.4f} vs stored {stored:.4f}"
     # Matching is the evaluation's own Hungarian assignment in log(T1, T2) at each run's
     # fitted theta, the protocol under which the thesis reports parameter errors.
     rows = []

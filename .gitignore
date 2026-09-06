@@ -14,12 +14,10 @@
 /results/**/figures/
 /checkpoints_best.zip
 /results/nd_evaluation/*.json
-/results/_review_cache_*.npz
 !/results/nd_evaluation/paired_deltas.json
 !/results/nd_evaluation/tables_2d_3d.json
 /results/_scratch/
 /results/smoke/
-/slurm/logs/
 
 __pycache__/
 *.py[cod]

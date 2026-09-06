@@ -36,7 +36,7 @@ compartments. [CREDITS.md](CREDITS.md) separates inherited from original work in
 
 ```
 t1t2-detr/
-├── main.py                 the pipeline end to end: data, train, evaluate, aggregate, figures, tables, notebook
+├── main.py                 the pipeline end to end: data, train, evaluate, aggregate, figures, notebook
 ├── datagen/                synthetic data
 │   ├── voxel_simulator/      forward model, sampler, noise, dataset writer
 │   ├── data/ti_te_dict.mat   the 8 x 8 acquisition protocol, used exactly as stored
@@ -50,10 +50,8 @@ t1t2-detr/
 ├── results/                metrics of every run the thesis reports (see below)
 ├── data/                   manifests of the two dataset families (parquet files not included)
 ├── evaluation/figures/     one script per thesis figure
-├── evaluation/tables/      the scripts that write the thesis's LaTeX tables
-├── figures/, tables/       their outputs, as used in the thesis
-├── notebooks/              thesis.ipynb, the executed notebook that walks through data, examples and results
-└── slurm/                  a generic cluster job template
+├── figures/                their outputs, as used in the thesis
+└── notebooks/              thesis.ipynb, the executed notebook that walks through data, examples and results
 ```
 
 `notebooks/thesis.ipynb` is the place to start reading. It shows, in order, what the
@@ -171,12 +169,13 @@ the trained runs.
 ```bash
 python main.py                                        # all stages
 python main.py evaluate figures --runs loss_uniform   # some stages, some runs
-python main.py --force tables                         # redo even if the outputs exist
+python main.py --force figures                        # redo even if the outputs exist
 python main.py --dry-run                              # print the plan
 ```
 
 The train stage is the 26 runs of the matrix; on a GPU node it is a day, on a CPU it is not
-practical. Submit `slurm/train.slurm` per config instead and run the other stages afterwards.
+practical. Run the training command below inside your cluster's job script instead, one
+config per job, and run the other stages afterwards.
 
 ### Data
 
@@ -222,7 +221,8 @@ PYTHONPATH=.:datagen python -m t1t2.experiment --config configs/loss_uniform.yam
 ```
 
 A run takes about half an hour on one A100 and early-stops well inside its 500-epoch budget.
-`slurm/train.slurm` is a job template. Training resumes from `last.pt` if a job is killed.
+Training resumes from `last.pt` if a job is killed, so resubmitting the same command
+continues the run.
 
 ### Evaluation
 
@@ -242,20 +242,15 @@ eight seed runs of the reference and the final model, so it needs their checkpoi
 generated data; with `--replot` it redraws from the stored `results/snr_ladder/summary.json`.
 Only `compare_experiments.py --all` runs on a fresh clone as it is.
 
-The thesis figures and tables are regenerated with the scripts under `evaluation/figures/`
-and `evaluation/tables/` (each folder has a README naming the script for every figure and
-table), and the notebook is re-executed in place with
+The thesis figures are regenerated with the scripts under `evaluation/figures/` (its README
+names the script for every figure), and the notebook is re-executed in place with
 
 ```bash
 jupyter nbconvert --to notebook --execute --inplace --ExecutePreprocessor.timeout=-1 notebooks/thesis.ipynb
 ```
 
 The figure scripts need `results/<run>/checkpoints/best.pt` for `baseline_v2_reproduction`
-and `loss_uniform`, both in the repository (see Trained models), except
-`make_error_distribution.py`, which reads the `results/_review_cache_<run>.npz` files that
-`build_review_stats.py` writes from the twelve checkpoints of the three four-seed families.
-The table scripts read only `results/`, apart from `build_2d_3d_tables.py` and
-`build_review_stats.py`, which need the checkpoints of the runs they score.
+and `loss_uniform`, both in the repository (see Trained models).
 
 ## The experiments
 
@@ -331,7 +326,7 @@ run.
 ## Use of AI tools
 
 Claude Code (Anthropic) and Codex (OpenAI) were used to write and debug the data generator,
-the training and evaluation code, and the scripts that produce the figures and tables. All
+the training and evaluation code, and the scripts that produce the figures. All
 code was reviewed and tested by me, and every reported number was produced by running this
 code on the data described above. No AI tool was used to generate or alter data or results.
 The thesis carries the same statement.
