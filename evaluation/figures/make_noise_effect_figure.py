@@ -42,15 +42,18 @@ proto = load_protocol()
 ti = np.asarray(getattr(proto, "ti", getattr(proto, "TI", None)), float); te = np.asarray(getattr(proto, "te", getattr(proto, "TE", None)), float)
 # The n2 test voxels start at row 3333 of the concatenated (n1, n2, n3) test set.
 df2 = pd.read_parquet(ROOT / "data" / "t1_3500_t2_500_100k" / "n2" / "test.parquet"); off = 3333
+# dictionary of single-compartment signals on a 60 x 60 (T1, T2) grid
 T1g = np.logspace(np.log10(50), np.log10(3500), 60); T2g = np.logspace(np.log10(5), np.log10(500), 60)
 G = np.array([forward_numpy(proto, np.array([a]), np.array([b]), np.array([1.0])).ravel() for a in T1g for b in T2g])
 Gn2 = (G ** 2).sum(1)
+# per K = 2 voxel: least-squares residual of the best dictionary atom, in units of sigma
 rows, store = [], {}
 for i, r in enumerate(df2.itertuples(index=False)):
     S = forward_numpy(proto, np.array([r.T1_1, r.T1_2]), np.array([r.T2_1, r.T2_2]), np.array([r.w_1, r.w_2])).ravel()
     proj = G @ S; res2 = S @ S - proj ** 2 / Gn2; b = int(np.argmin(res2))
     resid = S - (proj[b] / Gn2[b]) * G[b]
     rows.append((off + i, np.sqrt(max(res2[b], 0) / 64) / r.sigma)); store[off + i] = (S, resid)
+# the smaller compartment of each K = 2 voxel, joined with its residual
 R = pd.DataFrame(rows, columns=["voxel", "res_over_sigma"])
 k2 = D[D.K == 2]; small = k2.loc[k2.groupby("voxel").w.idxmin()].merge(R, on="voxel")
 small.to_parquet(RESULTS / "separability_k2_test.parquet")
@@ -60,6 +63,7 @@ fig, (axA, axB, axC) = plt.subplots(1, 3, figsize=(12.5, 3.7), gridspec_kw={"wid
 
 # (a) who the noise hurts: the small compartments
 wb = [(0.05, 0.1, "$w<0.1$"), (0.1, 0.3, "$0.1$–$0.3$"), (0.3, 0.6, "$0.3$–$0.6$"), (0.6, 1.01, "$w\\geq0.6$")]
+# found share per weight bin at low and at high SNR
 lo = D[(D.snr >= 30) & (D.snr < 60)]; hi = D[(D.snr >= 100) & (D.snr <= 150)]
 ylo = [100 * lo[(lo.w >= a) & (lo.w < b)].found_final.mean() for a, b, _ in wb]
 yhi = [100 * hi[(hi.w >= a) & (hi.w < b)].found_final.mean() for a, b, _ in wb]
@@ -76,12 +80,14 @@ axA.set_title("(a) noise hurts the small compartments only"); axA.legend(fontsiz
 # (b) one voxel: the small compartment's own signal (grey) against what is left after the
 # one-compartment refit (blue), both in units of the noise level sigma, same scale, with
 # the +-sigma band.
+# pick a representative undetected small compartment
 cand = small[(small.r > 15) & (small.r < 30) & (small.res_over_sigma > 0.5) & (small.res_over_sigma < 0.8) & (~small.found_final.astype(bool))]
 ex = cand.sort_values("w").iloc[len(cand) // 2]; v = int(ex.voxel); row = df2.iloc[v - off]
 sigma = float(row.sigma); S, resid = store[v]
 smallidx = 0 if row.w_1 < row.w_2 else 1
 w_s = (row.w_1, row.w_2)[smallidx]; t1_s = (row.T1_1, row.T1_2)[smallidx]; t2_s = (row.T2_1, row.T2_2)[smallidx]
 w_l = (row.w_1, row.w_2)[1 - smallidx]; t1_l = (row.T1_1, row.T1_2)[1 - smallidx]; t2_l = (row.T2_1, row.T2_2)[1 - smallidx]
+# its own signal and the refit residual, points sorted by (TI, TE)
 g_small = w_s * forward_numpy(proto, np.array([t1_s]), np.array([t2_s]), np.array([1.0])).ravel()
 order = np.lexsort((te, ti)); xs = np.arange(64)
 axB.axhspan(-1, 1, color=ORANGE, alpha=0.18, lw=0); axB.text(63.3, -2.1, "noise band $\\pm\\sigma$", ha="right", va="top", fontsize=TINY, color=ORANGE)
@@ -98,6 +104,7 @@ print(f"example voxel {v}: w_small {w_s:.2f}, amp/sigma {ex.r:.1f}, residual/sig
 
 # (c) the residual decides
 edges = [0, 1, 2, 4, 1e9]; labels = ["below $\\sigma$", "$\\sigma$ to $2\\sigma$", "$2\\sigma$ to $4\\sigma$", "above $4\\sigma$"]
+# found share per residual bin
 vals, ns = [], []
 for a, b in zip(edges[:-1], edges[1:]):
     m = (small.res_over_sigma >= a) & (small.res_over_sigma < b); vals.append(100 * small.found_final[m].mean()); ns.append(int(m.sum()))

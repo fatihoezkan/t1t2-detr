@@ -36,6 +36,7 @@ RUNS = [("baseline_v2_reproduction", "reference"), ("loss_uniform", "loss_unifor
 
 def pairs_for(run):
     """Load a model and collect matched predictions and true values."""
+    # inference, then the queries above the fitted threshold
     loaded = load_run(ROOT / "results" / run)
     cfg, spans, thr = loaded.cfg, loaded.spans, loaded.fitted_threshold
     q, all_trues = loaded.predict("test")
@@ -54,6 +55,7 @@ def pairs_for(run):
     return a, spans, cfg
 
 
+# rows: runs; columns: T1, T2, weight
 fig, axes = plt.subplots(2, 3, figsize=(10.5, 7.0))
 for r, (run, label) in enumerate(RUNS):
     a, spans, cfg = pairs_for(run)
@@ -64,6 +66,7 @@ for r, (run, label) in enumerate(RUNS):
         ax = axes[r][c]
         x, y = a[:, ti], a[:, pi]
         ax.scatter(x, y, s=3, alpha=0.10, color="#1f4e79", edgecolors="none", rasterized=True)
+        # log axes with the identity line and the tau corridor; linear for the weight
         if log:
             ax.set_xscale("log"); ax.set_yscale("log")
             lim = (lo * 0.85, hi * 1.18)
@@ -76,6 +79,7 @@ for r, (run, label) in enumerate(RUNS):
             lim = (0.0, 1.02)
             ax.plot(lim, lim, color="0.3", lw=0.9)
         ax.set_xlim(*lim); ax.set_ylim(*lim)
+        # median error printed in the corner
         med = np.median(np.abs(y - x) / np.maximum(x, 1e-9)) * 100 if log else np.median(np.abs(y - x))
         note = f"median rel. err. {med:.1f}%" if log else f"median abs. err. {med:.3f}"
         ax.text(0.03, 0.97, note, transform=ax.transAxes, fontsize=TINY, va="top")

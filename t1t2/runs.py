@@ -34,11 +34,13 @@ class Run:
     @property
     def fitted_threshold(self) -> float:
         """The existence threshold the run's own evaluation selected on validation."""
+        # read the threshold out of summary.json
         summary = json.loads((self.dir / "summary.json").read_text())
         return float(summary["threshold_calibration"]["selected_threshold"])
 
     def dataset(self, split="test", limit=None) -> VoxelDataset:
         """One of the run's own splits by name, or explicit parquet path(s)."""
+        # split name -> path(s) from the run's own config; anything else is taken as a path
         d = self.cfg.data
         named = {"train": d.train_path, "val": d.val_path, "test": d.test_path}
         paths = named[split] if isinstance(split, str) and split in named else split
@@ -46,19 +48,23 @@ class Run:
 
     def predict(self, split="test", limit=None):
         """(query table, true compartments) for a split: the two inputs every metric takes."""
+        # inference over the split, plus the ground truth in the same list format
         ds = self.dataset(split, limit)
         return detr_query_outputs(self.model, ds, self.device, self.normalizer), true_compartments(ds)
 
 
 def load_run(run_dir, device="cpu") -> Run:
     """Load results/<name>/ with its best checkpoint; the run directory is only read."""
+    # config and best checkpoint from the run directory
     rd = Path(run_dir)
     cfg = load_config(rd / "config.yaml")
     ckpt = torch.load(rd / "checkpoints" / "best.pt", map_location="cpu", weights_only=True)
+    # rebuild the model and load the weights
     model = build_model(cfg.model)
     model.load_state_dict(ckpt["model"])
     device = torch.device(device)
     model.to(device).eval()
+    # normaliser and log spans come from the training config, not from the data
     d = cfg.data
     return Run(dir=rd, cfg=cfg, model=model, normalizer=TargetNormalizer.from_config(d),
                spans=log_spans(d.t1_min, d.t1_max, d.t2_min, d.t2_max),

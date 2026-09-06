@@ -27,14 +27,17 @@ def detr_query_outputs(model, ds, device, normalizer, batch_size=512):
     `exist_prob`, an (N, Q) array of sigmoid existence probabilities. Threshold calibration
     and per-query analysis need this unfiltered table.
     """
+    # batched inference without gradients
     model.eval()
     params, probs = [], []
     with torch.no_grad():
         for i in range(0, len(ds), batch_size):
+            # one batch of signals -> (B, Q, 4) predictions
             X = ds.X[i:i + batch_size].to(device)
             out = model(X)
             out = out["pred"] if isinstance(out, dict) else out
             row = out.detach().cpu().numpy()
+            # [0, 1] outputs back to ms; the weight is already physical
             physical = np.empty(row[..., :3].shape, dtype=np.float64)
             physical[..., 0] = normalizer.denormalize_t1(row[..., 0])
             physical[..., 1] = normalizer.denormalize_t2(row[..., 1])
@@ -43,6 +46,7 @@ def detr_query_outputs(model, ds, device, normalizer, batch_size=512):
             # Clip the logits before the sigmoid so exp cannot overflow on an unusual
             # checkpoint. No effect in the normal range.
             probs.append(1.0 / (1.0 + np.exp(-np.clip(row[..., 3], -80.0, 80.0))))
+    # stack the batches; empty arrays if the dataset was empty
     n_queries = getattr(model, "n_queries", 0)
     return {
         "params": np.concatenate(params, axis=0)
@@ -60,6 +64,7 @@ def predictions_from_query_outputs(query_outputs, exist_thresh=0.5):
         raise ValueError(
             f"query parameter/probability shapes disagree: {params.shape} vs {probs.shape}"
         )
+    # keep the queries above the threshold, as (T1, T2, w) tuples
     preds = []
     for row, score in zip(params, probs):
         keep = score > exist_thresh
@@ -82,6 +87,7 @@ def true_compartments(ds):
     Uses the raw millisecond values kept at load time and only the first n_comp slots of each
     voxel; the remaining slots are padding.
     """
+    # the first n_comp slots of the raw millisecond tables
     trues, nc = [], ds.n_comp.numpy()
     for i in range(len(ds)):
         k = int(nc[i])
@@ -98,10 +104,12 @@ def _match(pred, true):
     """
     if not pred or not true:
         return []
+    # squared distance in (log T1, log T2) between every prediction and every truth
     P = np.array([[p[0], p[1]] for p in pred], np.float64)
     T = np.array([[t[0], t[1]] for t in true], np.float64)
     cost = ((np.log(P[:, None, 0]) - np.log(T[None, :, 0])) ** 2
             + (np.log(P[:, None, 1]) - np.log(T[None, :, 1])) ** 2)
+    # optimal one-to-one pairing
     r, c = linear_sum_assignment(cost)
     return [(pred[i], true[j]) for i, j in zip(r, c)]
 
@@ -110,6 +118,7 @@ def _parameter_match_indices(pred, true):
     """Hungarian assignment using all three regression outputs: T1, T2 and weight."""
     if not pred or not true:
         return np.array([], dtype=int), np.array([], dtype=int)
+    # same as _match, with the weight added as a third term
     p = np.asarray(pred, dtype=np.float64)
     t = np.asarray(true, dtype=np.float64)
     cost = (
@@ -133,12 +142,14 @@ def parameter_recovery_analysis(preds, trues, weight_bins=None):
     """
     if len(preds) != len(trues):
         raise ValueError("prediction and truth lengths must agree")
+    # default weight bins for the per-bin breakdown
     if weight_bins is None:
         weight_bins = (0.05, 0.10, 0.20, 0.30, 0.50, 0.75, 1.000001)
     weight_bins = np.asarray(weight_bins, dtype=np.float64)
     if np.any(np.diff(weight_bins) <= 0):
         raise ValueError("weight bins must be strictly increasing")
 
+    # running totals over the whole split
     records, extras = [], []
     total_true_weight = recovered_true_weight = 0.0
     matched_weighted_t1 = matched_weighted_t2 = matched_weight_mass = 0.0
@@ -146,12 +157,14 @@ def parameter_recovery_analysis(preds, trues, weight_bins=None):
     per_voxel_set_error, per_voxel_weight_l1, per_voxel_extra_weight = [], [], []
 
     for voxel, (pred, true) in enumerate(zip(preds, trues)):
+        # three-parameter matching for this voxel
         p = np.asarray(pred, dtype=np.float64).reshape(-1, 3)
         t = np.asarray(true, dtype=np.float64).reshape(-1, 3)
         rows, cols = _parameter_match_indices(pred, true)
         pred_to_true = {int(r): int(c) for r, c in zip(rows, cols)}
         true_to_pred = {int(c): int(r) for r, c in zip(rows, cols)}
 
+        # every true compartment: matched (errors) or missed (full penalty)
         t1_penalty = t2_penalty = 0.0
         weight_l1 = 0.0
         for j, target in enumerate(t):
@@ -203,6 +216,7 @@ def parameter_recovery_analysis(preds, trues, weight_bins=None):
                     "weight_abs_error": None,
                 })
 
+        # predictions matched to nothing count as extra weight
         extra_weight = 0.0
         for i, estimate in enumerate(p):
             if i not in pred_to_true:
@@ -215,6 +229,7 @@ def parameter_recovery_analysis(preds, trues, weight_bins=None):
                     "pred_weight": float(estimate[2]),
                 })
 
+        # bounded set error: mean of the T1 term, the T2 term and the clipped weight L1
         true_mass = float(t[:, 2].sum()) if len(t) else 1.0
         t1_term = t1_penalty / max(true_mass, 1e-12)
         t2_term = t2_penalty / max(true_mass, 1e-12)
@@ -223,6 +238,7 @@ def parameter_recovery_analysis(preds, trues, weight_bins=None):
         per_voxel_weight_l1.append(weight_l1)
         per_voxel_extra_weight.append(extra_weight)
 
+    # split-level summary
     matched = [r for r in records if r["matched"]]
     summary = {
         "n_voxels": len(preds),
@@ -254,6 +270,7 @@ def parameter_recovery_analysis(preds, trues, weight_bins=None):
         ),
     }
 
+    # the same quantities per true-weight bin
     bins = []
     for i, (lo, hi) in enumerate(zip(weight_bins[:-1], weight_bins[1:])):
         bucket = [
@@ -301,6 +318,7 @@ def _mean(a):
 
 def _regression_block(preds, trues, prefix=""):
     """Matched-pair errors over the given voxels."""
+    # absolute and relative errors over the matched pairs
     t1_rel, t2_rel, t1_abs, t2_abs, w_abs = [], [], [], [], []
     t2_rel_csf, t2_rel_noncsf = [], []
     for pred, true in zip(preds, trues):
@@ -342,8 +360,10 @@ def count_detection_metrics(preds, trues):
     positives and missing ones are false negatives. Counting only; parameter quality is scored
     separately on the matched pairs.
     """
+    # predicted and true counts per voxel
     pc = np.asarray([len(p) for p in preds], dtype=int)
     tc = np.asarray([len(t) for t in trues], dtype=int)
+    # per voxel: min(pred, true) hits, surplus predictions are FP, the shortfall is FN
     tp = int(np.minimum(pc, tc).sum())
     fp = int(np.maximum(pc - tc, 0).sum())
     fn = int(np.maximum(tc - pc, 0).sum())
@@ -369,6 +389,7 @@ def count_confusion(preds, trues, n_queries=10):
 
     Predicted counts run from 0 to n_queries, so the table is not square.
     """
+    # one row per true count, bincount of the predicted counts
     tc = np.array([len(t) for t in trues], dtype=int)
     pc = np.array([len(p) for p in preds], dtype=int)
     rows = sorted(set(tc.tolist()))
@@ -385,6 +406,7 @@ def physics_violations(preds):
     The heads are independent sigmoids, so nothing in the architecture enforces either
     constraint, and nothing corrects the outputs afterwards.
     """
+    # per prediction: T2 >= T1; per voxel: |sum(w) - 1|
     viol, wsum = [], []
     for pred in preds:
         if not pred:
@@ -407,6 +429,7 @@ def compute_metrics(preds, trues, n_queries=10):
     badly matched pairs would dominate a mean. Read quality per compartment count: the dataset
     balances one-, two- and three-compartment voxels, and an aggregate describes none of them.
     """
+    # count accuracy needs no matching
     pc = np.array([len(p) for p in preds])
     tc = np.array([len(t) for t in trues])
 
@@ -415,6 +438,7 @@ def compute_metrics(preds, trues, n_queries=10):
         "count_accuracy": float((pc == tc).mean()) if len(pc) else float("nan"),
         "count_mae": float(np.abs(pc - tc).mean()) if len(pc) else float("nan"),
     }
+    # detection counts and matched-pair regression errors
     m |= count_detection_metrics(preds, trues)
     m |= _regression_block(preds, trues)
 
@@ -425,6 +449,7 @@ def compute_metrics(preds, trues, n_queries=10):
     m |= _regression_block([preds[i] for i in ok], [trues[i] for i in ok], prefix="cc_")
     m["cc_n_voxels"] = len(ok)
 
+    # the same metrics per true compartment count
     for k in sorted(set(tc.tolist())):
         idx = np.flatnonzero(tc == k)
         m[f"count_accuracy_n{k}"] = float((pc[idx] == k).mean())
@@ -445,6 +470,7 @@ def compute_metrics(preds, trues, n_queries=10):
         )
         m |= {key: sub[key] for key in keep}
 
+    # confusion table, physics checks, parameter recovery
     m["confusion"] = count_confusion(preds, trues, n_queries)
     m |= physics_violations(preds)
     recovery = parameter_recovery_analysis(preds, trues)
@@ -462,9 +488,11 @@ def calibrate_existence_threshold(query_outputs, trues, thresholds=None):
     weight and charges missed or extra compartments, so it has an interior optimum. Ties go
     to more recovered signal, then a lower weight error, then the threshold nearest 0.5.
     """
+    # default grid 0.05 .. 0.95
     if thresholds is None:
         thresholds = np.linspace(0.05, 0.95, 91)
     curve = []
+    # score every threshold
     for threshold in thresholds:
         threshold = float(threshold)
         preds = predictions_from_query_outputs(query_outputs, threshold)
@@ -490,6 +518,7 @@ def calibrate_existence_threshold(query_outputs, trues, thresholds=None):
         })
     if not curve:
         raise ValueError("threshold grid is empty")
+    # the lowest set error wins; ties broken as described above
     key = lambda x: (
         x["parameter_set_error"],
         -x["recovered_signal_fraction"],
@@ -516,11 +545,13 @@ def scatter_figure(preds, trues, path, title=""):
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
+    # (pred T1, true T1, pred T2, true T2) per matched pair
     pairs = [(p[0], t[0], p[1], t[1]) for pred, true in zip(preds, trues) for p, t in _match(pred, true)]
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     fig, ax = plt.subplots(1, 2, figsize=(11, 5.5))
     if pairs:
         a = np.array(pairs)
+        # one panel per parameter
         for k, (ip, it, name) in enumerate([(0, 1, "T1"), (2, 3, "T2")]):
             true_v, pred_v = a[:, it], a[:, ip]
             # Shared square limits from both true and predicted values, so y = x runs
@@ -549,6 +580,7 @@ def parameter_scatter_figure(analysis, path, title=""):
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
+    # matched compartments only
     records = [r for r in analysis["records"] if r["matched"]]
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -558,6 +590,7 @@ def parameter_scatter_figure(analysis, path, title=""):
         ("true_t2", "pred_t2", "T2 (ms)", True),
         ("true_weight", "pred_weight", "signal fraction", False),
     ]
+    # one panel per parameter, identity line drawn in
     for ax, (true_key, pred_key, label, use_log) in zip(axes, specs):
         if records:
             true_v = np.asarray([r[true_key] for r in records])
@@ -594,6 +627,7 @@ def error_vs_signal_fraction_figure(analysis, path, title=""):
     path.parent.mkdir(parents=True, exist_ok=True)
     fig, axes = plt.subplots(1, 2, figsize=(12, 4.8), sharex=True, sharey=True)
     colors = ("#0072B2", "#D55E00")
+    # scatter of every matched compartment plus the per-bin median
     for ax, key, label, color in zip(
         axes,
         ("t1_rel_error", "t2_rel_error"),
@@ -632,6 +666,7 @@ def recovery_vs_signal_fraction_figure(analysis, path, title=""):
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
+    # left: match rate and recovered mass per bin; right: median weight error per bin
     bins = analysis["bins"]
     labels = [b["label"] for b in bins]
     x = np.arange(len(bins))
@@ -670,6 +705,7 @@ def threshold_calibration_figure(calibration, path):
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
+    # three curves over the threshold grid and a line at the selected value
     curve = calibration["curve"]
     x = [r["threshold"] for r in curve]
     selected = calibration["selected_threshold"]
@@ -705,11 +741,13 @@ def evaluate_detr(model, ds, device, normalizer, results_dir, exist_thresh=0.5, 
     exist_thresh is passed in, not searched for here: tuning it on the split being reported
     would score the model on data it was tuned against. Sweep it on validation instead.
     """
+    # predict, score, save the metrics and the scatter
     preds = detr_predictions(model, ds, device, normalizer, exist_thresh)
     trues = true_compartments(ds)
     metrics = compute_metrics(preds, trues, n_queries=n_queries)
     metrics["exist_thresh"] = exist_thresh
     _save(metrics, preds, trues, results_dir, tag)
+    # parameter-recovery analysis and its three figures
     analysis = parameter_recovery_analysis(preds, trues)
     rd = Path(results_dir)
     compact = {"summary": analysis["summary"], "bins": analysis["bins"]}
@@ -744,6 +782,7 @@ def evaluate_snr_ladder(model, paths, cfg, device, normalizer, results_dir, trai
     """
     from .data import VoxelDataset
 
+    # score each rung on its own
     out = {}
     for label, path in paths.items():
         ds = VoxelDataset(path, cfg, normalizer, limit=limit)
@@ -754,6 +793,7 @@ def evaluate_snr_ladder(model, paths, cfg, device, normalizer, results_dir, trai
         m["extrapolation"] = bool(train_snr_min is not None and snr is not None and snr < train_snr_min)
         out[label] = m
 
+    # one JSON with every rung
     rd = Path(results_dir)
     rd.mkdir(parents=True, exist_ok=True)
     with open(rd / "metrics_snr_ladder.json", "w") as f:
@@ -769,6 +809,7 @@ def _snr_of(label):
 
 def _save(metrics, preds, trues, results_dir, tag):
     """Write metrics_<tag>.json and the corresponding scatter plot into results_dir."""
+    # metrics JSON and the scatter figure
     rd = Path(results_dir)
     (rd / "figures").mkdir(parents=True, exist_ok=True)
     with open(rd / f"metrics_{tag}.json", "w") as f:

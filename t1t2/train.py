@@ -37,6 +37,7 @@ def _total_limit(data_cfg) -> int | None:
     The cap is stated per path so that a reduced-data run stays balanced across compartment
     counts instead of starving the later files.
     """
+    # per-path cap times the number of training files
     per = data_cfg.train_limit_per_path
     if per is None:
         return None
@@ -58,10 +59,12 @@ def _check_resume_compatible(cfg: ExperimentConfig, results_dir: Path, resume: b
     directory would continue from those weights and produce a model that is half one
     experiment and half another, with a saved config claiming it was entirely the second.
     """
+    # nothing to check unless a previous config and checkpoint exist
     prev_path = results_dir / "config.yaml"
     if not (resume and prev_path.exists() and (results_dir / "checkpoints" / "last.pt").exists()):
         return
 
+    # compare the sections that matter
     prev = load_config(prev_path)
     old, new = _fingerprint(prev), _fingerprint(cfg)
     changed = {k: (old[k], new[k]) for k in new if old[k] != new[k]}
@@ -78,6 +81,7 @@ def _check_resume_compatible(cfg: ExperimentConfig, results_dir: Path, resume: b
 def set_seed(seed: int) -> None:
     """Seed python, numpy and torch. Makes two runs on the same machine match; it does not
     guarantee bit-identical results across GPUs or torch versions."""
+    # seed all three RNGs
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -92,13 +96,17 @@ def _run_epoch(model, loader, crit, device, opt=None, aux_weight=1.0,
     applied to the final prediction only. The logged "sc" value is the raw mismatch before
     lambda, so runs with different lambdas stay comparable.
     """
+    # train mode when an optimiser is given, eval mode otherwise
     train = opt is not None
     model.train() if train else model.eval()
+    # per-batch values of every loss component
     agg = {k: [] for k in _LOSS_KEYS}
     with torch.enable_grad() if train else torch.no_grad():
         for X, y, nc in loader:
+            # batch to the device: signal (B, 64), targets (B, max_comp * 3), counts (B,)
             X, y, nc = X.to(device), y.to(device), nc.to(device)
-            out = model(X)
+            out = model(X)  # (B, n_queries, 4), or a dict with aux_loss
+            # hungarian loss on the final prediction, plus the per-layer auxiliary losses if enabled
             if isinstance(out, dict):                          # aux_loss enabled
                 pred = out["pred"]
                 loss, l1, l2, lw, le = crit(pred, y, nc)
@@ -108,19 +116,23 @@ def _run_epoch(model, loader, crit, device, opt=None, aux_weight=1.0,
             else:
                 pred = out
                 loss, l1, l2, lw, le = crit(out, y, nc)
+            # signal-consistency term on the final prediction only
             if phys_crit is not None:
                 sc = phys_crit(pred, X, y)
                 loss = loss + phys_lambda * sc
             else:
                 sc = torch.zeros((), device=device)
+            # backward pass, optional gradient clipping, optimiser step
             if train:
                 opt.zero_grad()
                 loss.backward()
                 if gradient_clip_norm is not None:
                     torch.nn.utils.clip_grad_norm_(model.parameters(), gradient_clip_norm)
                 opt.step()
+            # store the batch values for the epoch mean
             for k, v in zip(_LOSS_KEYS, (loss, l1, l2, lw, le, sc)):
                 agg[k].append(float(v.item()))
+    # epoch means; parameter_loss is the selection metric
     result = {k: float(np.mean(v)) for k, v in agg.items()}
     result["parameter_loss"] = result["t1"] + result["t2"] + result["wt"]
     return result
@@ -128,6 +140,7 @@ def _run_epoch(model, loader, crit, device, opt=None, aux_weight=1.0,
 
 def _build_scheduler(opt, train_cfg):
     """Set up learning-rate reduction, or keep the rate constant."""
+    # constant learning rate or reduce-on-plateau
     mode = train_cfg.lr_scheduler
     if mode == "constant":
         return None
@@ -148,6 +161,7 @@ def train(cfg: ExperimentConfig, results_dir=None, max_epochs=None, resume=True,
     max_epochs overrides the config's epoch count and limit caps the voxels loaded; both are
     for smoke runs. `log` is injectable so tests can silence the output.
     """
+    # seed, device, results directory
     set_seed(cfg.train.seed)
     device = get_device(cfg.train.device)
     log(f"[{cfg.name}] device={device} | {device_info()}")
@@ -164,6 +178,7 @@ def train(cfg: ExperimentConfig, results_dir=None, max_epochs=None, resume=True,
     normalizer = TargetNormalizer.from_config(cfg.data)
     # train_limit_per_path reduces the training set only; `limit` is the smoke-run cap and
     # applies to everything. Validation stays identical across arms so best_val is comparable.
+    # training loader (shuffled) and optional validation loader
     train_loader, _ = make_dataloader(
         cfg.data.train_path, cfg.data, cfg.train.batch_size, True,
         normalizer, cfg.train.num_workers,
@@ -176,6 +191,7 @@ def train(cfg: ExperimentConfig, results_dir=None, max_epochs=None, resume=True,
             normalizer, cfg.train.num_workers, limit=limit,
         )
 
+    # model and losses
     model = build_model(cfg.model).to(device)
     crit = HungarianLoss(cfg.loss)
     phys_crit = None
@@ -194,6 +210,7 @@ def train(cfg: ExperimentConfig, results_dir=None, max_epochs=None, resume=True,
         if wu <= 0 or epoch >= wu:
             return w
         return w * (epoch + 1) / wu
+    # optimiser and scheduler
     opt = torch.optim.AdamW(
         model.parameters(),
         lr=cfg.train.lr, weight_decay=cfg.train.weight_decay, betas=tuple(cfg.train.opt_betas),
@@ -205,6 +222,7 @@ def train(cfg: ExperimentConfig, results_dir=None, max_epochs=None, resume=True,
     start_epoch, history = 0, []
     best_val, best_epoch, bad_epochs = float("inf"), -1, 0
     last_ckpt, best_ckpt = ckpt_dir / "last.pt", ckpt_dir / "best.pt"
+    # resume from last.pt if there is one
     if resume and last_ckpt.exists():
         state = torch.load(last_ckpt, map_location=device)
         model.load_state_dict(state["model"])
@@ -223,9 +241,11 @@ def train(cfg: ExperimentConfig, results_dir=None, max_epochs=None, resume=True,
     if cfg.train.early_stopping and val_loader is None:
         log(f"[{cfg.name}] no val split -> early stopping disabled, final epoch is the result")
 
+    # main epoch loop
     epochs = max_epochs if max_epochs is not None else cfg.train.epochs
     steps = sum(h.get("steps", 0) for h in history)
     for epoch in range(start_epoch, epochs):
+        # one training pass, then one validation pass
         t0 = time.time()
         lam = _phys_lambda(epoch)
         tr = _run_epoch(
@@ -241,6 +261,7 @@ def train(cfg: ExperimentConfig, results_dir=None, max_epochs=None, resume=True,
               if val_loader else {})
         selection_value = float(va[SELECTION_METRIC]) if va else None
         steps += len(train_loader)
+        # record the epoch
         history.append({
             "epoch": epoch, "train": tr, "val": va,
             "selection_metric": SELECTION_METRIC,
@@ -252,6 +273,7 @@ def train(cfg: ExperimentConfig, results_dir=None, max_epochs=None, resume=True,
             "cum_steps": steps,
         })
 
+        # best-model selection on the validation parameter loss
         improved = bool(va) and selection_value < best_val - cfg.train.early_stopping_min_delta
         if improved:
             # Plain Python scalars only: torch 2.6+ loads with weights_only=True by default,
@@ -271,6 +293,7 @@ def train(cfg: ExperimentConfig, results_dir=None, max_epochs=None, resume=True,
         elif va:
             bad_epochs += 1
 
+        # the scheduler steps on the same metric
         if scheduler is not None and va:
             scheduler.step(selection_value)
 
@@ -286,6 +309,7 @@ def train(cfg: ExperimentConfig, results_dir=None, max_epochs=None, resume=True,
         with open(results_dir / "history.json", "w") as f:
             json.dump(history, f, indent=2)
 
+        # progress line
         msg = f"[{cfg.name}] ep {epoch + 1}/{epochs} train {tr['loss']:.5f}"
         if va:
             msg += (f" | val {va['loss']:.5f} (t1 {va['t1']:.4f} t2 {va['t2']:.4f} "
@@ -295,6 +319,7 @@ def train(cfg: ExperimentConfig, results_dir=None, max_epochs=None, resume=True,
             msg += "  *best*" if improved else f"  (no gain {bad_epochs}/{cfg.train.early_stopping_patience})"
         log(msg)
 
+        # early stopping
         if early_stop and bad_epochs >= cfg.train.early_stopping_patience:
             log(f"[{cfg.name}] early stop at epoch {epoch + 1}: no val gain for "
                 f"{bad_epochs} epochs. Best {best_val:.5f} @ epoch {best_epoch + 1}.")

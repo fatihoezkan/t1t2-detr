@@ -55,6 +55,7 @@ BOOT_SEED = 20260826
 
 def load_records(run: str):
     """Return (records, n_gt, test_paths), or (None, None, None) if not evaluated."""
+    # the per-voxel dump written by run_nd_evaluation.py
     path = ND / f"{run}.json"
     if not path.exists():
         return None, None, None
@@ -74,10 +75,12 @@ def per_voxel_flags(recs, ngt, theta: float):
     means the right number of compartments and a bijection onto the true ones (every true
     compartment hit exactly once, nothing spurious).
     """
+    # one flag per voxel
     n = len(ngt)
     strict = np.zeros(n, dtype=bool)
     count = np.zeros(n, dtype=bool)
     for i, (rec, k) in enumerate(zip(recs, ngt)):
+        # queries above the threshold, grouped by the ground truth they were assigned to
         keep = [x for x in rec if x["prob"] >= theta]
         count[i] = len(keep) == k
         by: dict = {}
@@ -99,10 +102,12 @@ def mcnemar(ref: np.ndarray, arm: np.ndarray):
     exact p value, the 95 % half-width of the paired difference, and the two
     discordant counts.
     """
+    # discordant pairs
     n = len(ref)
     b = int(np.sum(~ref & arm))          # arm right, reference wrong
     c = int(np.sum(ref & ~arm))          # reference right, arm wrong
     delta = 100.0 * (arm.mean() - ref.mean())
+    # exact binomial test on the discordant pairs
     p = stats.binomtest(c, b + c, 0.5).pvalue if (b + c) else 1.0
     # variance of a paired difference of proportions
     var = (b + c) - (b - c) ** 2 / n
@@ -126,6 +131,7 @@ def paired_bootstrap_map(ref_recs, ref_ngt, arm_recs, arm_ngt, n_boot=N_BOOT):
     Both runs are scored on the same resample each iteration, so the run-to-run correlation
     from the shared test set cancels in the difference.
     """
+    # point estimate, then n_boot resamples shared by both runs
     rng = np.random.default_rng(BOOT_SEED)
     n = len(ref_ngt)
     base = map7(arm_recs, arm_ngt) - map7(ref_recs, ref_ngt)
@@ -139,6 +145,7 @@ def paired_bootstrap_map(ref_recs, ref_ngt, arm_recs, arm_ngt, n_boot=N_BOOT):
 
 def holm(pvalues):
     """Holm-Bonferroni adjusted p values, order preserved."""
+    # step-down: sort, scale by (m - rank), keep the adjusted values monotone
     p = np.asarray(pvalues, dtype=float)
     m = len(p)
     adj = np.empty(m)
@@ -151,6 +158,7 @@ def holm(pvalues):
 
 def self_check(ref: str = REFERENCE) -> bool:
     """Confirm the per-voxel rule reproduces the stored aggregates exactly."""
+    # recompute strict/count accuracy and mAP@7 and compare with the stored files
     recs, ngt, _ = load_records(ref)
     if recs is None:
         print(f"[self-check] no records for {ref}", file=sys.stderr)
@@ -186,6 +194,7 @@ def self_check(ref: str = REFERENCE) -> bool:
 
 def main() -> int:
     """Run paired model comparisons or check the statistical helpers."""
+    # command line
     ap = argparse.ArgumentParser()
     ap.add_argument("arms", nargs="*", default=None)
     ap.add_argument("--self-check", action="store_true")
@@ -196,12 +205,14 @@ def main() -> int:
     if args.self_check:
         return 0 if self_check() else 1
 
+    # reference flags at both thresholds
     ref_recs, ref_ngt, ref_paths = load_records(REFERENCE)
     if ref_recs is None:
         print(f"no ND records for the reference run {REFERENCE}", file=sys.stderr)
         return 1
     ref_flags = {t: per_voxel_flags(ref_recs, ref_ngt, t) for t in THETAS}
 
+    # one entry per arm
     arms = args.arms or ARMS
     results = {}
     for arm in arms:
@@ -228,6 +239,7 @@ def main() -> int:
             }
             continue
 
+        # McNemar on strict and count accuracy at each threshold
         entry = {"paired_applicable": True, "accuracy": {}}
         for theta in THETAS:
             strict, count = per_voxel_flags(recs, ngt, theta)
@@ -246,6 +258,7 @@ def main() -> int:
                 }
             entry["accuracy"][f"{theta}"] = row
 
+        # paired bootstrap on mAP@7
         if not args.no_map:
             base, lo, hi = paired_bootstrap_map(
                 ref_recs, ref_ngt, recs, ngt
@@ -277,6 +290,7 @@ def main() -> int:
             cell["holm_p"] = float(adj)
             cell["significant_holm"] = bool(adj < 0.05)
 
+    # write
     payload = {
         "reference": REFERENCE,
         "thetas": list(THETAS),

@@ -17,6 +17,7 @@ from t1t2.runs import load_run
 
 def analyse(run, device="cpu"):
     """Measure which query slots are active and what they predict."""
+    # unfiltered query table on the test split
     loaded = load_run(Path("results") / run, device)
     cfg, rd, theta = loaded.cfg, loaded.dir, loaded.fitted_threshold
     q, _ = loaded.predict("test")
@@ -24,6 +25,7 @@ def analyse(run, device="cpu"):
     probs = np.asarray(q["exist_prob"])       # (N, Q)
     n_vox, n_q = probs.shape
 
+    # per query slot: how often it fires and what it predicts when it does
     slots = []
     for j in range(n_q):
         act = probs[:, j] >= theta
@@ -50,6 +52,7 @@ def analyse(run, device="cpu"):
                          "t1_p10_ms", "t1_p90_ms", "t2_p10_ms", "t2_p90_ms")})
         slots.append(rec)
 
+    # which slots are ever used
     active = [s for s in slots if s["active_count"] > 0]
     never = [s for s in slots if s["active_count"] == 0]
     out = {
@@ -71,6 +74,7 @@ def analyse(run, device="cpu"):
 
 def report(o):
     """Print query activity, prediction ranges, and duplicate counts."""
+    # one row per slot
     print(f"\n=== {o['run']}   theta={o['theta']:.2f}   {o['n_voxels']} test voxels ===")
     print(f"{'slot':>4} {'active%':>8} {'max prob':>9} {'med w':>7} "
           f"{'T1 p10-p90 (ms)':>19} {'T2 p10-p90 (ms)':>19}")

@@ -42,6 +42,7 @@ GROUPS = [
 
 def load_all(res_dir):
     """Load saved model evaluations from a results folder."""
+    # every per-run JSON keyed by run name; the deltas file is not a run
     out = {}
     for p in sorted(Path(res_dir).glob("*.json")):
         if p.name in ("paired_deltas.json",):
@@ -78,6 +79,7 @@ def restore_records(d):
 
 def main(res_dir="results/nd_evaluation"):
     """Summarize model evaluations and compare their paired results."""
+    # load every evaluated run
     res_dir = Path(res_dir)
     all_d = load_all(res_dir)
     print(f"loaded {len(all_d)} models: {sorted(all_d)}")
@@ -93,6 +95,7 @@ def main(res_dir="results/nd_evaluation"):
     groups = GROUPS + ([("Other runs (test sets not checked, compare with care)", other)]
                        if other else [])
 
+    # one row per model -> csv
     df = pd.DataFrame([row_of(all_d[n]) for n in named + other])
     df.to_csv(res_dir / "nd_metrics_all_models.csv", index=False)
 
@@ -105,12 +108,14 @@ def main(res_dir="results/nd_evaluation"):
              "recall.", ""]
     cols = ["model", "mAP_avg", "mAP@7", "mAP@5", "mAP@10", "precision", "recall",
             "f1", "mean_dT1_ms", "mean_dT2_ms", "mean_dw", "exist_threshold(val)"]
+    # one table per group
     for title, names in groups:
         sub = df[df["model"].isin(names)]
         if not len(sub):
             continue
         lines += [f"## {title}", "", "| " + " | ".join(cols) + " |",
                   "|" + "---|" * len(cols)]
+        # four decimals for scores, two for millisecond and weight errors
         for _, r in sub.iterrows():
             vals = [r["model"]] + [
                 f"{r[c]:.4f}" if isinstance(r[c], float) and "dT" not in c and c != "mean_dw"

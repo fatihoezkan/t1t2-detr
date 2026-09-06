@@ -19,14 +19,17 @@ GRID = [round(0.05 * i, 2) for i in range(1, 20)]      # 0.05 .. 0.95
 
 def score(recs, ngt, T):
     """All metrics at one existence threshold, from unfiltered records."""
+    # filter the records at T and count per voxel
     TP = FP = FN = 0
     n_count_ok = n_voxel_ok = 0
     n_pred = 0
     for r, n in zip(recs, ngt):
+        # queries above the threshold
         keep = [x for x in r if x["prob"] >= T]
         n_pred += len(keep)
         if len(keep) == n:
             n_count_ok += 1
+        # group the hits by ground truth: first hit TP, extra hits FP, no hit FN
         by = {}
         for x in keep:
             if x["gt"] is None:
@@ -43,6 +46,7 @@ def score(recs, ngt, T):
         # every true compartment matched exactly once, and nothing spurious
         if len(keep) == n and len(by) == n and all(len(v) == 1 for v in by.values()):
             n_voxel_ok += 1
+    # aggregates
     p = TP / (TP + FP) if TP + FP else 0.0
     r_ = TP / (TP + FN) if TP + FN else 0.0
     nv = len(ngt)
@@ -58,6 +62,7 @@ def score(recs, ngt, T):
 
 def score_by_k(recs, ngt, T):
     """Strict accuracy split by the true compartment count."""
+    # totals, strict hits and count hits per true K
     tot, ok, cnt = {}, {}, {}
     for r, n in zip(recs, ngt):
         n = int(n)
@@ -77,6 +82,7 @@ def score_by_k(recs, ngt, T):
 
 def run_one(run, device="cpu"):
     """Score one model across confidence thresholds in 2D and 3D."""
+    # one inference pass, then records with and without the weight dimension
     loaded = load_run(Path("results") / run, device)
     q, trues = loaded.predict("test")
     out = {"run": run, "n_voxels": len(trues), "tau": TAU_BASE}
@@ -90,6 +96,7 @@ def run_one(run, device="cpu"):
 
 def main():
     """Save threshold sweeps and print each run's best test accuracy."""
+    # one JSON per run, plus a one-line summary
     runs = sys.argv[1:]
     outdir = Path("results/threshold_sweep")
     outdir.mkdir(parents=True, exist_ok=True)

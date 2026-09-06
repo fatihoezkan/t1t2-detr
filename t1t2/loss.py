@@ -37,6 +37,7 @@ class HungarianLoss(nn.Module):
     def __init__(self, cfg):
         """Set how much each prediction error contributes to the loss."""
         super().__init__()
+        # loss term weights
         self.t1_w = cfg.t1_weight
         self.t2_w = cfg.t2_weight
         self.wt_w = cfg.w_weight
@@ -50,6 +51,7 @@ class HungarianLoss(nn.Module):
 
     def forward(self, y_pred, y_true, n_comp):
         """Match predictions to true compartments and calculate their errors."""
+        # batch size, query count and the number of regression targets
         device = y_pred.device
         B, n_queries, _ = y_pred.shape
         n_reg = y_pred.shape[-1] - 1                       # three regression targets
@@ -57,11 +59,13 @@ class HungarianLoss(nn.Module):
         max_comp = y_true.shape[1]
 
         # 1. Cost of assigning every query to every true compartment, as a (B, Q, C) table.
+        # predictions (B, Q, 1) against targets (B, 1, C) broadcast to (B, Q, C)
         p_t1, p_t2, p_wt = y_pred[:, :, 0:1], y_pred[:, :, 1:2], y_pred[:, :, 2:3]
         t_t1 = y_true[:, :, 0].unsqueeze(1)
         t_t2 = y_true[:, :, 1].unsqueeze(1)
         t_wt = y_true[:, :, 2].unsqueeze(1)
 
+        # squared error of every query against every compartment
         t1_sq = (p_t1 - t_t1) ** 2
         t2_sq = (p_t2 - t_t2) ** 2
         wt_sq = (p_wt - t_wt) ** 2
@@ -92,11 +96,13 @@ class HungarianLoss(nn.Module):
             true_idx.extend(cols)
             batch_idx.extend([b] * len(rows))
 
+        # matched (voxel, query, compartment) index triples
         p = torch.tensor(pred_idx, device=device, dtype=torch.long)
         t = torch.tensor(true_idx, device=device, dtype=torch.long)
         bidx = torch.tensor(batch_idx, device=device, dtype=torch.long)
 
         # 3. Regression loss on the matched pairs.
+        # true weight of each matched compartment
         matched_w = y_true[bidx, t, 2]
         if self.t1_t2_weighting == "uniform":
             fraction = torch.ones_like(matched_w)
@@ -104,6 +110,7 @@ class HungarianLoss(nn.Module):
             fraction = torch.sqrt(matched_w.clamp(min=0.0))
         else:
             fraction = matched_w
+        # per-pair errors, scaled by the weighting mode
         weighted_t1 = t1_sq[bidx, p, t] * fraction * self.t1_w
         weighted_t2 = t2_sq[bidx, p, t] * fraction * self.t2_w
         weighted_wt = wt_sq[bidx, p, t] * self.wt_w
@@ -111,8 +118,10 @@ class HungarianLoss(nn.Module):
         # 4. Existence classification over all queries. Matched queries are the positives.
         # With one to three compartments against ten queries they are heavily outnumbered,
         # so they are up-weighted; without that the head predicts "empty" everywhere.
+        # 1 for matched queries, 0 for the rest
         exist_tgt = torch.zeros(B, n_queries, device=device)
         exist_tgt[bidx, p] = 1.0
+        # positives per voxel and the resulting pos_weight, clamped to [0.5, 10]
         pos = exist_tgt.sum(dim=-1)
         pos_weight = torch.clamp((n_queries - pos) / pos.clamp(min=1.0), min=0.5, max=10.0)
         cls_per = F.binary_cross_entropy_with_logits(
@@ -132,6 +141,7 @@ class HungarianLoss(nn.Module):
             w = torch.zeros(B, device=device).index_add_(0, bidx, matched_w)
             return s / w.clamp(min=1e-12)
 
+        # reduce to one T1, T2 and weight loss per voxel
         if self.t1_t2_weighting == "signal_fraction":
             bt1 = _per_voxel_fraction_mean(weighted_t1)
             bt2 = _per_voxel_fraction_mean(weighted_t2)
@@ -141,6 +151,7 @@ class HungarianLoss(nn.Module):
         bwt = _per_voxel_mean(weighted_wt)
 
         # The components are returned with the total so the log can show where the error sits.
+        # total per voxel, then the batch mean
         per_voxel = bt1 + bt2 + bwt + self.ex_w * cls_per
         loss = per_voxel.mean()
         return loss, bt1.mean(), bt2.mean(), bwt.mean(), self.ex_w * cls_per.mean()

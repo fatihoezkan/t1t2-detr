@@ -111,6 +111,7 @@ def flatten(d: dict, prefix: str = "") -> dict:
     Lists are kept whole, not expanded per index: a data path list is one setting, and expanding
     it would report three differences for data_loguniform where there is one.
     """
+    # recurse into dicts, keep lists whole as tuples
     out: dict = {}
     for k, v in d.items():
         key = f"{prefix}{k}"
@@ -129,6 +130,7 @@ def load_run(run_dir: Path) -> dict:
     from an older YAML come back as dataclass defaults. Otherwise model.exist_head, which the
     baseline YAML omits, would diff against every arm that writes it explicitly.
     """
+    # summary.json
     summary_path = run_dir / "summary.json"
     if not summary_path.exists():
         raise FileNotFoundError(
@@ -138,6 +140,7 @@ def load_run(run_dir: Path) -> dict:
     with open(summary_path) as f:
         summary = json.load(f)
 
+    # config.yaml through the dataclasses, then flattened
     config_path = run_dir / "config.yaml"
     if not config_path.exists():
         raise FileNotFoundError(f"{run_dir}: no config.yaml, so its config cannot be diffed.")
@@ -156,6 +159,7 @@ def load_run(run_dir: Path) -> dict:
 
 def metric_value(run: dict, source: str, key: str) -> tuple[float | None, str | None]:
     """Pull one metric. Returns (value, note); note is set when a fallback or a gap was hit."""
+    # pick the block the key lives in
     s = run["summary"]
     if source == "detr":
         block = s.get("detr", {})
@@ -166,6 +170,7 @@ def metric_value(run: dict, source: str, key: str) -> tuple[float | None, str | 
     else:
         block = s
 
+    # direct hit, alias fallback, or missing
     if key in block:
         v = block[key]
         return (None if v is None else float(v)), None
@@ -184,6 +189,7 @@ def metric_value(run: dict, source: str, key: str) -> tuple[float | None, str | 
 # --------------------------------------------------------------------------------------------
 def config_diff(baseline: dict, arm: dict) -> list[tuple[str, object, object]]:
     """Every config field where the arm differs from the baseline, ignoring name and notes."""
+    # union of the keys, minus name and notes
     keys = (set(baseline["config"]) | set(arm["config"])) - IGNORED_CONFIG_FIELDS
     diffs = []
     for k in sorted(keys):
@@ -205,6 +211,7 @@ def dataset_differs(baseline: dict, arm: dict) -> bool:
 
 def verdict(baseline: dict, arm: dict) -> dict:
     """Classify an arm by whether its delta is attributable to one named config change."""
+    # diff the configs and split off the data.* fields
     diffs = config_diff(baseline, arm)
     data_fields = [d for d in diffs if d[0].startswith("data.")]
     other = [d for d in diffs if not d[0].startswith("data.")]
@@ -219,6 +226,7 @@ def verdict(baseline: dict, arm: dict) -> dict:
     sc_switch_flipped = any(d[0] == "loss.signal_consistency" for d in sc_fields)
     effective_n = len(diffs) - (len(sc_fields) - 1 if sc_switch_flipped and sc_fields else 0)
 
+    # classify
     if arm["name"] == baseline["name"]:
         tag, note = "REFERENCE", "the reference run itself"
     elif not diffs:
@@ -264,6 +272,7 @@ def verdict(baseline: dict, arm: dict) -> dict:
 # --------------------------------------------------------------------------------------------
 def fmt(value: float | None, kind: str) -> str:
     """Format a metric with the right units and precision."""
+    # missing, NaN, then per-kind formatting
     if value is None:
         return "-"
     if isinstance(value, float) and math.isnan(value):
@@ -287,12 +296,14 @@ def fmt_delta(base: float | None, value: float | None, kind: str, direction: int
     Percentage metrics get percentage points, not a relative change: 78.54 % -> 79.54 % is
     "+1.00 pp", not "+1.3 %".
     """
+    # no delta without both values
     if base is None or value is None:
         return "-"
     if isinstance(base, float) and math.isnan(base):
         return "-"
     if isinstance(value, float) and math.isnan(value):
         return "-"
+    # signed difference in the metric's own units, then the better/worse marker
     d = value - base
     if kind == "pct":
         body = f"{100.0 * d:+.2f} pp"
@@ -316,11 +327,13 @@ def fmt_delta(base: float | None, value: float | None, kind: str, direction: int
 # --------------------------------------------------------------------------------------------
 def build_metric_rows(runs: list[dict], baseline: dict) -> tuple[list[list[str]], list[str], list[str]]:
     """Build the metric table as a list of string rows, plus the header and any notes."""
+    # header: reference, then (arm, delta) pairs
     notes: list[str] = []
     header = ["Metric", f"{baseline['name']}  (reference)"]
     for r in runs[1:]:
         header += [r["name"], "Δ"]
 
+    # one row per metric
     rows: list[list[str]] = []
     for label, source, key, kind, direction in METRICS:
         base_v, note = metric_value(baseline, source, key)
@@ -343,6 +356,7 @@ def weight_bin_block(runs: list[dict], baseline: dict) -> tuple[list[list[str]],
         b = run["summary"].get("detr", {}).get("parameter_recovery", {}).get("bins", [])
         return {x["label"]: x for x in b}
 
+    # rows: (bin, quantity) with the same column layout as the metric table
     base_bins = bins_of(baseline)
     if not base_bins:
         return [], []
@@ -365,6 +379,7 @@ def weight_bin_block(runs: list[dict], baseline: dict) -> tuple[list[list[str]],
 
 def markdown_table(header: list[str], rows: list[list[str]], align_first_left=True) -> str:
     """Arrange headers and rows into a readable Markdown table."""
+    # column widths, then header, separator and rows
     widths = [max(len(header[i]), *(len(r[i]) for r in rows)) if rows else len(header[i])
               for i in range(len(header))]
     def line(cells):
@@ -422,6 +437,7 @@ sentence as its result. The numbers are in `configs/README.md`.
 
 def write_report(runs: list[dict], out_dir: Path, notes_extra: list[str]) -> dict:
     """Save the experiment comparison as Markdown, CSV, and JSON."""
+    # build the three tables
     baseline = runs[0]
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -458,6 +474,7 @@ def write_report(runs: list[dict], out_dir: Path, notes_extra: list[str]) -> dic
         ),
     ]
 
+    # optional weight-bin section
     if wb_rows:
         parts += [
             "",
@@ -472,6 +489,7 @@ def write_report(runs: list[dict], out_dir: Path, notes_extra: list[str]) -> dic
             markdown_table(wb_header, wb_rows),
         ]
 
+    # de-duplicated data notes
     all_notes = notes + notes_extra
     if all_notes:
         seen, uniq = set(), []
@@ -523,6 +541,7 @@ def discover_runs(results_dir: Path) -> list[str]:
 
 def main(argv=None) -> int:
     """Compare the requested runs with the reference experiment."""
+    # command line
     ap = argparse.ArgumentParser(
         description="Compare finished experiment arms against the reference run.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -539,6 +558,7 @@ def main(argv=None) -> int:
     ap.add_argument("--quiet", action="store_true")
     args = ap.parse_args(argv)
 
+    # paths
     log = (lambda *a, **k: None) if args.quiet else print
     results_dir = Path(args.results_dir) if args.results_dir else REPO_ROOT / "results"
     out_dir = Path(args.out_dir) if args.out_dir else results_dir / "_comparison"
@@ -547,6 +567,7 @@ def main(argv=None) -> int:
         print(f"error: no results directory at {results_dir}", file=sys.stderr)
         return 2
 
+    # which runs
     names = list(args.runs)
     if args.all:
         names = discover_runs(results_dir)
@@ -558,6 +579,7 @@ def main(argv=None) -> int:
     # Reference column first, exactly once.
     names = [BASELINE_RUN] + [n for n in names if n != BASELINE_RUN]
 
+    # load each run; a missing arm is noted, a missing reference is fatal
     notes_extra: list[str] = []
     runs = []
     for n in names:
@@ -575,6 +597,7 @@ def main(argv=None) -> int:
         log("[compare] only the reference run is present. The table below is that one "
             "column alone, which is correct and not yet a comparison.")
 
+    # write and print the report
     result = write_report(runs, out_dir, notes_extra)
 
     if not args.quiet:
@@ -584,6 +607,7 @@ def main(argv=None) -> int:
         print(f"[compare] wrote {result['metrics_csv']}")
         print(f"[compare] wrote {result['arms_csv']}")
 
+    # warn about arms that are not single-change ablations
     bad = [v["run"] for v in result["verdicts"] if "NOT INTERPRETABLE" in v["verdict"]]
     if bad:
         print(f"[compare] WARNING: not interpretable as single-change ablations: "

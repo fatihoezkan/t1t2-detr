@@ -22,6 +22,7 @@ class SignalEncoder(nn.Module):
     def __init__(self, input_dim: int, hidden_dim: int, fs_dim: int):
         """Build the layers that turn a signal into features."""
         super().__init__()
+        # 64 -> hidden -> hidden -> hidden -> fs_dim
         self.net = nn.Sequential(
             nn.Linear(input_dim, hidden_dim), nn.LayerNorm(hidden_dim), nn.ReLU(),
             nn.Linear(hidden_dim, hidden_dim), nn.LayerNorm(hidden_dim), nn.ReLU(),
@@ -40,6 +41,7 @@ class MLPHead(nn.Module):
     def __init__(self, input_dim: int, hidden_dim: int, output_dim: int):
         """Build a small network for one prediction task."""
         super().__init__()
+        # two hidden layers, linear output
         self.net = nn.Sequential(
             nn.Linear(input_dim, hidden_dim), nn.LayerNorm(hidden_dim), nn.ReLU(),
             nn.Linear(hidden_dim, hidden_dim), nn.LayerNorm(hidden_dim), nn.ReLU(),
@@ -63,6 +65,7 @@ class T1T2DETR(nn.Module):
     def __init__(self, cfg):
         """Build the signal encoder, compartment queries, and prediction heads."""
         super().__init__()
+        # network sizes from the config
         self.input_dim = cfg.input_dim
         self.hidden_dim = cfg.hidden_dim
         self.fs_dim = cfg.fs_dim
@@ -71,10 +74,12 @@ class T1T2DETR(nn.Module):
         self.n_heads = cfg.n_heads
         self.aux_loss = cfg.aux_loss
 
+        # MLP backbone: signal -> one memory token
         self.encoder = SignalEncoder(self.input_dim, self.hidden_dim, self.fs_dim)
 
         # One learned vector per query. Nothing ties a query to a particular compartment.
         self.queries = nn.Embedding(self.n_queries, self.fs_dim)
+        # transformer decoder: the queries attend to the memory token
         decoder_layer = nn.TransformerDecoderLayer(
             self.fs_dim, self.n_heads, dim_feedforward=self.hidden_dim, batch_first=True
         )
@@ -82,6 +87,7 @@ class T1T2DETR(nn.Module):
             decoder_layer, num_layers=self.n_layers, norm=nn.LayerNorm(self.fs_dim)
         )
 
+        # one regression head per output, applied to every query state
         self.t1_head = MLPHead(self.fs_dim, self.fs_dim, 1)
         self.t2_head = MLPHead(self.fs_dim, self.fs_dim, 1)
         self.w_head = MLPHead(self.fs_dim, self.fs_dim, 1)
@@ -110,6 +116,7 @@ class T1T2DETR(nn.Module):
 
     def forward(self, X):
         """Predict compartment properties and existence scores from voxel signals."""
+        # encode the signal and tile the learned queries over the batch
         B = X.size(0)
         memory = self.encoder(X).unsqueeze(1)                     # (B, 1, fs_dim)
         hs = self.queries.weight.unsqueeze(0).expand(B, -1, -1)   # (B, n_queries, fs_dim)
@@ -122,6 +129,7 @@ class T1T2DETR(nn.Module):
             if self.aux_loss:
                 aux.append(self._predict(hs))
 
+        # final norm and read-out
         hs = self.decoder.norm(hs)
         out = self._predict(hs)
         if self.aux_loss:
@@ -130,6 +138,7 @@ class T1T2DETR(nn.Module):
 
     def _predict(self, hs):
         """Run the heads over decoder states hs and return (B, n_queries, 4)."""
+        # regression outputs in [0, 1], each (B, n_queries, 1)
         t1 = torch.sigmoid(self.t1_head(hs))
         t2 = torch.sigmoid(self.t2_head(hs))
         w = torch.sigmoid(self.w_head(hs))
@@ -140,7 +149,7 @@ class T1T2DETR(nn.Module):
             exist = self.exist_head(hs_cat).unsqueeze(2)       # (B, n_queries, 1)
         else:
             exist = self.exist_head(hs)                        # (B, n_queries, 1)
-        return torch.cat([t1, t2, w, exist], dim=-1)
+        return torch.cat([t1, t2, w, exist], dim=-1)  # (B, n_queries, 4)
 
 
 def build_model(model_cfg) -> T1T2DETR:

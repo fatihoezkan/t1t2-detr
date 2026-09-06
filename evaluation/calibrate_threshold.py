@@ -22,6 +22,7 @@ OUT = Path("results/threshold_val")
 
 def _curve(run, split):
     """Score one split of the run at each confidence threshold."""
+    # unfiltered ND records at tau = 7 %, then one score row per threshold
     q, trues = run.predict(split)
     recs, ngt = dataset_records(q, trues, run.spans, TAU_BASE, exist_thresh=0.0,
                                include_weight=False)
@@ -33,15 +34,18 @@ def main(runs):
     OUT.mkdir(parents=True, exist_ok=True)
     print(f"{'run':34s} {'val theta':>10s} {'val acc':>8s} {'test acc':>9s} {'test@.75':>9s}")
     for run in runs:
+        # best threshold on validation by strict voxel accuracy
         loaded = load_run(Path("results") / run)
         val = _curve(loaded, "val")
         best = max(val, key=lambda r: r["voxel_acc"])
         theta = best["threshold"]
+        # test accuracy at that threshold and at the declared 0.75
         test = _curve(loaded, "test")
         at = lambda t: next(r for r in test if abs(r["threshold"] - t) < 1e-9)["voxel_acc"]
         rec = {"run": run, "val_theta": theta, "val_voxel_acc": best["voxel_acc"],
                "test_voxel_acc_at_val_theta": at(theta), "test_voxel_acc_at_075": at(0.75),
                "val_curve": val}
+        # write and print
         (OUT / f"{run}.json").write_text(json.dumps(rec, indent=1))
         print(f"{run:34s} {theta:10.2f} {best['voxel_acc']:8.2f} "
               f"{rec['test_voxel_acc_at_val_theta']:9.2f} {rec['test_voxel_acc_at_075']:9.2f}")

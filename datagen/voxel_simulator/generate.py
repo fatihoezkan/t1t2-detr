@@ -79,6 +79,7 @@ def simulate_voxel_signal(
     The noise stream is keyed like the parameter stream but with STREAM_NOISE, so the two are
     independent and both are reproducible from (base_seed, n_comp, split_code, voxel_id).
     """
+    # clean forward signal, then noise from the voxel's own noise stream
     clean = simulate_clean_signal(protocol, spec.t1, spec.t2, spec.w)
     rng = voxel_rng(base_seed, spec.n_comp, split_code, voxel_id, STREAM_NOISE)
     return add_noise(clean, spec.snr, rng, sigma=noise_sigma)
@@ -104,6 +105,7 @@ def generate_voxel(
     made --n-comp a no-op. `sampling` affects only the parameter stream; the noise stream is
     keyed independently.
     """
+    # ground truth first, then the noisy signal
     spec = sample_voxel_spec(
         voxel_id=voxel_id,
         n_comp=n_comp,
@@ -129,6 +131,7 @@ def voxel_to_row(voxel: GeneratedVoxel, protocol: Protocol, noise_sigma: float |
     The ground-truth columns are always MAX_COMP wide, NaN-padded beyond n_comp, so per-count
     files share one schema and can be concatenated.
     """
+    # voxel-level columns
     spec = voxel.spec
     row: dict = {
         "voxel_id": voxel.voxel_id,
@@ -136,6 +139,7 @@ def voxel_to_row(voxel: GeneratedVoxel, protocol: Protocol, noise_sigma: float |
         "sigma": voxel.sigma,
         "n_comp": spec.n_comp,
     }
+    # compartment slots 1..MAX_COMP, NaN beyond n_comp
     for i in range(MAX_COMP):
         if i < spec.n_comp:
             row[f"T1_{i+1}"] = float(spec.t1[i])
@@ -145,6 +149,7 @@ def voxel_to_row(voxel: GeneratedVoxel, protocol: Protocol, noise_sigma: float |
             row[f"T1_{i+1}"] = np.nan
             row[f"T2_{i+1}"] = np.nan
             row[f"w_{i+1}"]  = np.nan
+    # signal columns S_1..S_P as float32
     for p in range(protocol.n_points):
         row[f"S_{p+1}"] = np.float32(voxel.signal[p])
     return row
@@ -170,6 +175,7 @@ def generate_one(
     `sampling` is not stored per row; it is constant per family and recorded in the manifest
     under physics.sampling.
     """
+    # one voxel -> one row
     voxel = generate_voxel(
         voxel_id=voxel_id,
         n_comp=n_comp,
@@ -207,6 +213,7 @@ def generate_dataset(
     Two datasets that differ only in `sampling` are not independent samples: the same key
     consumes the same uniforms in both. Independent families need different base_seed values.
     """
+    # one row per voxel id, all with the same n_comp
     if protocol is None:
         protocol = load_protocol()
     rows = [
@@ -323,6 +330,7 @@ def build_dataset_jobs(config: DatasetFamilyConfig) -> list[DatasetJob]:
     and matches exactly, but signals are float32, and z = (S - S_clean) / sigma amplifies the
     storage rounding by 1/sigma (about 2e-5 at SNR 150). Use atol around 1e-4.
     """
+    # absolute-noise mode: the same sigma for train/val/test, one test set per ladder sigma
     if config.noise_sigma is not None:      # absolute-noise mode
         s = config.noise_sigma
         jobs = [
@@ -337,6 +345,7 @@ def build_dataset_jobs(config: DatasetFamilyConfig) -> list[DatasetJob]:
             )
         return jobs
 
+    # SNR mode: random SNR for train/val/test, one pinned-SNR test set per rung
     jobs = [
         DatasetJob("train", config.n_train, SPLIT_TRAIN, config.snr_min, config.snr_max),
         DatasetJob("val", config.n_val, SPLIT_VAL, config.snr_min, config.snr_max),
@@ -352,6 +361,7 @@ def build_dataset_jobs(config: DatasetFamilyConfig) -> list[DatasetJob]:
 
 def _write_parquet_atomic(df: pd.DataFrame, path: Path) -> None:
     """Write to a temporary file and rename, so a crash never leaves a partial parquet in place."""
+    # write next to the target, then rename
     tmp = path.with_name(path.name + ".tmp")
     try:
         df.to_parquet(tmp, index=False)
@@ -373,6 +383,7 @@ def _git_state(repo_dir: Path) -> dict:
         except Exception:
             return None
 
+    # HEAD commit and whether the tree has uncommitted changes
     commit = _run("git", "rev-parse", "HEAD")
     status = _run("git", "status", "--porcelain")
     return {"commit": commit, "dirty": None if status is None else bool(status)}
@@ -431,6 +442,7 @@ def build_manifest(config: DatasetFamilyConfig, jobs: list[DatasetJob], rows: di
 
 def _sha256(path: Path) -> str:
     """SHA-256 of a file; used to pin the protocol file the data came from."""
+    # hash in 64 KB chunks
     h = hashlib.sha256()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(65536), b""):
@@ -440,6 +452,7 @@ def _sha256(path: Path) -> str:
 
 def generate_dataset_family(config: DatasetFamilyConfig, *, verbose: bool = True) -> list[Path]:
     """Generate the train, val, test and fixed-SNR parquet files for one compartment count."""
+    # protocol, output folder and the list of splits to write
     protocol = load_protocol()
     out_dir = Path(config.out_dir)
     os.makedirs(out_dir, exist_ok=True)
@@ -455,6 +468,7 @@ def generate_dataset_family(config: DatasetFamilyConfig, *, verbose: bool = True
                 f"(e.g. {existing[0].name}). Pass overwrite=True / --overwrite to replace them."
             )
 
+    # one line describing the family
     level = (f"sigma={config.noise_sigma:g}" if config.noise_sigma is not None
              else f"snr=[{config.snr_min:g},{config.snr_max:g}]")
     if verbose:
@@ -464,6 +478,7 @@ def generate_dataset_family(config: DatasetFamilyConfig, *, verbose: bool = True
             f"T1{config.t1_range} T2{config.t2_range} | sampling={config.sampling}"
         )
 
+    # generate and write each split
     written: list[Path] = []
     rows: dict[str, int] = {}
     total, t0 = 0, time.time()
@@ -484,12 +499,14 @@ def generate_dataset_family(config: DatasetFamilyConfig, *, verbose: bool = True
             sampling=config.sampling,
         )
 
+        # write atomically and record the row count
         path = out_dir / f"{job.name}.parquet"
         _write_parquet_atomic(df, path)
         written.append(path)
         rows[job.name] = len(df)
         total += job.n_voxels
 
+        # per-split progress line
         if verbose:
             mb = os.path.getsize(path) / 1e6
             job_level = (f"sigma={job.noise_sigma:g}" if job.noise_sigma is not None

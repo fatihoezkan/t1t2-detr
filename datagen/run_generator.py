@@ -85,6 +85,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     """Generate the requested datasets, using tiny sizes for smoke runs."""
+    # command line -> family config
     a = parse_args()
     config = DatasetFamilyConfig(
         out_dir=a.out_dir,
@@ -104,6 +105,7 @@ def main() -> None:
         noise_sigma=a.noise_sigma,
         sigma_ladder=tuple(a.sigma_ladder),
     )
+    # tiny sizes for a dry run
     if a.smoke:
         config = smoke_config(config)
     generate_dataset_family(config)

@@ -39,6 +39,7 @@ RUNS = [("baseline_v2_reproduction", "reference", "#7f7f7f"),
 
 def collect(run):
     """Gather detection results and parameter errors across true T2 values."""
+    # inference, then the ND rule and the Hungarian match per voxel
     loaded = load_run(ROOT / "results" / run)
     cfg, spans, thr = loaded.cfg, loaded.spans, loaded.fitted_threshold
     q, all_trues = loaded.predict("test")
@@ -55,6 +56,7 @@ def collect(run):
             m_t2.append(tt[1])
             e1.append(abs(pp[0] - tt[0]) / tt[0] * 100)
             e2.append(abs(pp[1] - tt[1]) / tt[1] * 100)
+    # summary above and below the longest TE
     det_t2, det_f = np.asarray(det_t2), np.asarray(det_f)
     m_t2, e1, e2 = np.asarray(m_t2), np.asarray(e1), np.asarray(e2)
     hi = m_t2 > TE_MAX
@@ -76,6 +78,7 @@ def prof(x, v, edges, stat):
     return out
 
 
+# top: found share; bottom: median T2 and T1 error, both against true T2
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(7.2, 6.2), sharex=True)
 for run, label, col in RUNS:
     det_t2, det_f, m_t2, e1, e2, cfg = collect(run)

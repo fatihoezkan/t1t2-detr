@@ -31,9 +31,11 @@ def run_experiment(config_path, results_dir=None, max_epochs=None, limit=None,
                    resume=True, log=print):
     """Train, evaluate and summarise one experiment. Returns the summary dict, which is
     also written to results/<name>/summary.json."""
+    # config and results directory
     cfg = load_config(config_path)
     results_dir = Path(results_dir) if results_dir else Path("results") / cfg.name
 
+    # training; returns the best model
     history, results_dir, model = train(
         cfg, results_dir=results_dir, max_epochs=max_epochs, resume=resume, limit=limit, log=log,
     )
@@ -43,6 +45,7 @@ def run_experiment(config_path, results_dir=None, max_epochs=None, limit=None,
     # name a different epoch than the one whose weights are evaluated.
     best_path = Path(results_dir) / "checkpoints" / "best.pt"
     best = torch.load(best_path, map_location="cpu", weights_only=True) if best_path.exists() else None
+    # training provenance for summary.json
     summary = {
         "name": cfg.name,
         "epochs_run": len(history),
@@ -65,6 +68,7 @@ def run_experiment(config_path, results_dir=None, max_epochs=None, limit=None,
     }
 
     # Evaluate on the test split, falling back to validation and then training if absent.
+    # evaluation setup
     test_path = cfg.data.test_path or cfg.data.val_path or cfg.data.train_path
     normalizer = TargetNormalizer.from_config(cfg.data)
     device = get_device(cfg.train.device)
@@ -75,6 +79,7 @@ def run_experiment(config_path, results_dir=None, max_epochs=None, limit=None,
     if cfg.evaluation.calibrate_threshold:
         if not cfg.data.val_path:
             raise ValueError("threshold calibration requires data.val_path")
+        # unfiltered query table on validation, then the threshold search
         val_ds = VoxelDataset(cfg.data.val_path, cfg.data, normalizer, limit=limit)
         log(
             f"[{cfg.name}] calibrating existence threshold on validation "
@@ -104,6 +109,7 @@ def run_experiment(config_path, results_dir=None, max_epochs=None, limit=None,
             "selection_split": "validation",
         }
 
+    # test-split metrics and figures
     test_ds = VoxelDataset(test_path, cfg.data, normalizer, limit=limit)
 
     log(f"[{cfg.name}] evaluating DETR on {test_path} ({len(test_ds)} voxels)")
@@ -123,6 +129,7 @@ def run_experiment(config_path, results_dir=None, max_epochs=None, limit=None,
             exist_thresh=exist_thresh, n_queries=cfg.model.n_queries, limit=limit,
         )
 
+    # summary.json is written last, so its presence marks a finished run
     with open(Path(results_dir) / "summary.json", "w") as f:
         json.dump(summary, f, indent=2)
     log(f"[{cfg.name}] done -> {results_dir}")
@@ -134,6 +141,7 @@ def _train_snr_min(cfg) -> float | None:
 
     Used to mark ladder rungs below the training range as extrapolation.
     """
+    # manifest.json sits next to the first training parquet
     try:
         paths = cfg.data.train_path
         first = paths if isinstance(paths, str) else paths[0]
@@ -147,6 +155,7 @@ def _train_snr_min(cfg) -> float | None:
 def _snr_ladder_paths(test_path) -> dict:
     """{rung_label: [one path per compartment count]} for the test_snr*.parquet files next
     to the test split, so each rung is scored across all counts at once."""
+    # group the test_snr*.parquet files by rung name across the per-count folders
     paths = [test_path] if isinstance(test_path, str) else list(test_path)
     ladder: dict[str, list[str]] = {}
     for p in paths:
@@ -157,6 +166,7 @@ def _snr_ladder_paths(test_path) -> dict:
 
 def main():
     """Train and evaluate the experiment chosen on the command line."""
+    # command line
     ap = argparse.ArgumentParser(description="Train and evaluate one T1T2-DETR experiment.")
     ap.add_argument("--config", required=True, help="Path to the experiment YAML.")
     ap.add_argument("--results-dir", default=None, help="Override results/<name>/.")
@@ -165,6 +175,7 @@ def main():
     ap.add_argument("--no-resume", action="store_true", help="Ignore any existing checkpoint.")
     a = ap.parse_args()
 
+    # run and print the summary
     summary = run_experiment(
         a.config, results_dir=a.results_dir, max_epochs=a.max_epochs, limit=a.limit,
         resume=not a.no_resume,

@@ -53,12 +53,14 @@ QUANTITIES = [
 
 def ladder_paths(cfg, snr: int) -> list[str]:
     """The fixed-SNR files sitting next to each test split of the run's config."""
+    # test.parquet -> test_snr<N>.parquet in each per-count folder
     paths = cfg.data.test_path if isinstance(cfg.data.test_path, list) else [cfg.data.test_path]
     return [str(p).replace("test.parquet", f"test_snr{snr}.parquet") for p in paths]
 
 
 def relative_errors(query_outputs, trues, theta):
     """Relative T1 and T2 errors in percent, over matched compartments at threshold theta."""
+    # predictions above theta, matched to the truth in log (T1, T2)
     P = np.asarray(query_outputs["params"])
     E = np.asarray(query_outputs["exist_prob"])
     e1, e2 = [], []
@@ -79,12 +81,14 @@ def evaluate_run(results_dir: Path, run: str, device: str) -> dict:
     theta_cal = float(json.loads((results_dir / "threshold_val" / f"{run}.json").read_text())["val_theta"])
     theta_fit = loaded.fitted_threshold
     out = {"theta_calibrated": theta_cal, "theta_fitted": theta_fit, "rungs": {}}
+    # one inference pass per rung
     for snr in SNRS:
         q, trues = loaded.predict(ladder_paths(loaded.cfg, snr))
         recs, ngt = ndm.dataset_records(q, trues, loaded.spans, TAU, exist_thresh=0.0)
         s = score(recs, ngt, theta_cal)
         by_k = score_by_k(recs, ngt, theta_cal)["strict"]
         e1, e2 = relative_errors(q, trues, theta_fit)
+        # accuracies at the calibrated theta, errors at the fitted one
         out["rungs"][str(snr)] = {
             "n_voxels": int(len(ngt)),
             "strict_acc": s["voxel_acc"],
@@ -111,6 +115,7 @@ def stack(summary: dict, family: str, key: str, snrs=SNRS_IN_RANGE) -> np.ndarra
 
 def draw(summary: dict, out_png: Path) -> None:
     """Plot model performance across the test noise levels."""
+    # figure style
     plt.rcParams.update({
         "figure.dpi": 120, "savefig.dpi": 300, "savefig.bbox": "tight", "font.size": 9,
         "axes.titlesize": 9, "axes.labelsize": 9, "xtick.labelsize": 7, "ytick.labelsize": 7,
@@ -132,6 +137,7 @@ def draw(summary: dict, out_png: Path) -> None:
         ax.set_xticklabels([str(s) for s in SNRS_IN_RANGE])
         ax.set_xlim(35, 170)
 
+    # top row: the four quantities; bottom row: strict accuracy per K, plus a note
     for ax, (key, title) in zip(axes[0], QUANTITIES):
         curve(ax, key, title)
     axes[0, 0].legend(loc="lower right", fontsize=8)
@@ -160,6 +166,7 @@ def latex_table(summary: dict, out_tex: Path) -> None:
         col = stack(summary, fam, key)[:, i]
         return f"{col.mean():.2f} {{\\scriptsize[{col.max() - col.min():.2f}]}}"
 
+    # header: one column group per quantity, one column per family
     n = len(families)
     head = " & ".join(rf"\multicolumn{{{n}}}{{c}}{{{title}}}" for _, title in QUANTITIES)
     lines = [rf"\begin{{tabular}}{{l{'r' * (4 * n)}}}", r"\toprule", f"& {head} \\\\",
@@ -174,6 +181,7 @@ def latex_table(summary: dict, out_tex: Path) -> None:
 
 def parse_families(items: list[str] | None) -> dict[str, list[str]]:
     """Read named groups of runs from command-line options."""
+    # name=run1,run2 -> {name: [runs]}
     if not items:
         return DEFAULT_FAMILIES
     families = {}
@@ -187,6 +195,7 @@ def parse_families(items: list[str] | None) -> dict[str, list[str]]:
 
 def main() -> None:
     """Evaluate noise robustness and save the tables and plots."""
+    # command line
     ap = argparse.ArgumentParser(description="Score finished runs on the fixed-SNR test sets.")
     ap.add_argument("--results-dir", default="results", help="Where the runs live.")
     ap.add_argument("--out-dir", default="results/snr_ladder", help="Where to write the outputs.")
@@ -201,6 +210,7 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     out_json = out_dir / "summary.json"
 
+    # reuse the stored summary, or run inference for every family
     if a.replot and out_json.exists():
         summary = json.loads(out_json.read_text())
     else:
@@ -210,6 +220,7 @@ def main() -> None:
         out_json.write_text(json.dumps(summary, indent=1))
         print("wrote", out_json)
 
+    # figure and LaTeX table
     draw(summary, out_dir / "snr_ladder.png")
     latex_table(summary, out_dir / "snr_ladder.tex")
 

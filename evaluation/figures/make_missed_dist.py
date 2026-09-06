@@ -37,11 +37,13 @@ RUNS = [("baseline_v2_reproduction", "reference", "#7f7f7f"),
 
 def collect(run):
     """Collect T2 values and weights for all compartments and missed ones."""
+    # inference, then the ND rule per voxel
     loaded = load_run(ROOT / "results" / run)
     cfg, spans, thr = loaded.cfg, loaded.spans, loaded.fitted_threshold
     q, all_trues = loaded.predict("test")
     P = np.asarray(q["params"]); E = np.asarray(q["exist_prob"])
     all_t2, all_w, mis_t2, mis_w = [], [], [], []
+    # T2 and weight of every compartment, and of the missed ones
     for i, trues in enumerate(all_trues):
         recs = ndm.voxel_records(P[i], E[i], trues, spans, TAU, exist_thresh=thr)
         hit = {r["gt"] for r in recs if r["gt"] is not None}
@@ -53,6 +55,7 @@ def collect(run):
     return map(np.asarray, (all_t2, all_w, mis_t2, mis_w)), cfg
 
 
+# grey: all compartments (drawn once); coloured steps: the missed ones per run
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10.0, 3.9))
 first = True
 for run, label, col in RUNS:

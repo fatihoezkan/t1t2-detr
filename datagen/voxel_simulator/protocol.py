@@ -38,23 +38,25 @@ class Protocol:
         )
 
 
-# Protocol file shipped with the repository, resolved relative to __file__ so it does not depend
-# on the working directory. Module-level so the dataset manifest can checksum it.
+#Path to the default ti_te_dict.mat file, relative to this file
 DEFAULT_MAT_PATH = os.path.normpath(
     os.path.join(os.path.dirname(__file__), "..", "data", "ti_te_dict.mat")
 )
 
-
+# 
 def load_protocol(mat_path: str | None = None) -> Protocol:
-    """Load TI, TE and TR from ti_te_dict.mat, preserving the acquisition order."""
+    """Load TI, TE and TR from ti_te_dict.mat, preserving the order."""
+    # default to the shipped file
     if mat_path is None:
         mat_path = DEFAULT_MAT_PATH
 
+    # flatten to 1-D in stored order
     d = sio.loadmat(mat_path)
     ti = np.asarray(d["ti"], dtype=np.float64).flatten()
     te = np.asarray(d["te"], dtype=np.float64).flatten()
     tr = float(np.asarray(d["tr"]).flatten()[0])
 
+    #guards
     if ti.shape != te.shape:
         raise ValueError(f"TI and TE shape mismatch: {ti.shape} vs {te.shape}")
     if ti.ndim != 1:

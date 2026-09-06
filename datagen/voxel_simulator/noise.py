@@ -12,6 +12,7 @@ import numpy as np
 
 def _sigma_from_snr(signal_clean: np.ndarray, snr: float) -> float:
     """Noise standard deviation implied by an SNR: max(|S_clean|) / snr."""
+    # sigma = peak / SNR
     if snr <= 0:
         raise ValueError("SNR must be positive.")
     peak = float(np.max(np.abs(signal_clean)))
@@ -27,8 +28,10 @@ def add_gaussian_noise(signal_clean, snr, rng, sigma=None):
     the same rng state then share one z, which the paired fixed-SNR ladder relies on. The two
     forms agree bit for bit on the pinned NumPy, but that is not guaranteed across versions.
     """
+    # derive sigma from the SNR unless it is given
     if sigma is None:
         sigma = _sigma_from_snr(signal_clean, snr)
+    # standardised draw, then scaled
     z = rng.standard_normal(signal_clean.shape)
     signal_noisy = signal_clean + sigma * z
     return signal_noisy, sigma

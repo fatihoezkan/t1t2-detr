@@ -25,6 +25,7 @@ from t1t2.runs import load_run
 
 def evaluate_run(run_dir, out_dir, device="cpu", limit=None, n_boot=300, log=print):
     """Evaluate a saved model with normalized-distance matching and save results."""
+    # load the run and predict both splits
     run_dir = Path(run_dir)
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -43,6 +44,7 @@ def evaluate_run(run_dir, out_dir, device="cpu", limit=None, n_boot=300, log=pri
     # -- threshold-free mAP on TEST -------------------------------------------------
     maps, pr_curves = {}, {}
     recs7 = n_gt7 = None
+    # records at threshold 0 so every query is ranked; the tau = 7 % set is kept for the CI and the dump
     for tau in TAUS_DEFAULT:
         recs, n_gt = dataset_records(q_test, t_test, spans, tau, exist_thresh=0.0)
         m, prec, rec = map_101_from_records(recs, n_gt)
@@ -53,6 +55,7 @@ def evaluate_run(run_dir, out_dir, device="cpu", limit=None, n_boot=300, log=pri
             "precision": prec[::step].tolist(), "recall": rec[::step].tolist()}
         if abs(tau - TAU_BASE) < 1e-9:
             recs7, n_gt7 = recs, n_gt
+    # mean over the three taus and a bootstrap CI at 7 %
     maps["map_avg"] = float(np.mean([maps[f"map@{round(t * 100)}"] for t in TAUS_DEFAULT]))
     ci = bootstrap_map_ci(recs7, n_gt7, n_boot=n_boot)
     log(f"[{name}] mAP@7 = {maps['map@7']:.4f}  (95% CI {ci['lo']:.4f}-{ci['hi']:.4f})")
@@ -65,8 +68,10 @@ def evaluate_run(run_dir, out_dir, device="cpu", limit=None, n_boot=300, log=pri
         f"F1 {exact['f1']:.4f}  mean dT1 {exact['mean_dt1_ms']:.2f} ms  "
         f"mean dT2 {exact['mean_dt2_ms']:.2f} ms")
 
+    # mAP@7 by true weight and by compartment count
     strat = stratified_map(q_test, t_test, spans, tau=TAU_BASE)
 
+    # everything into one JSON
     result = {
         "name": name,
         "run_dir": str(run_dir),
@@ -98,6 +103,7 @@ def evaluate_run(run_dir, out_dir, device="cpu", limit=None, n_boot=300, log=pri
 
 
 if __name__ == "__main__":
+    # run directory, optional output directory
     run_dir = sys.argv[1]
     out_dir = sys.argv[2] if len(sys.argv) > 2 else "results/nd_evaluation"
     evaluate_run(run_dir, out_dir)

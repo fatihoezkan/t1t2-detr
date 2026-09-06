@@ -30,6 +30,7 @@ mpl.rcParams.update({
 })
 C_GT, C_MATCH, C_FP, GREY = "#1f4e79", "#7b3294", "#d55e00", "#8a8a8a"
 
+# three panels; time in units of the relaxation time
 fig, ax = plt.subplots(1, 3, figsize=(11.4, 3.2))
 
 # (a) longitudinal recovery

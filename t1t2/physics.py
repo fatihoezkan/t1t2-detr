@@ -43,6 +43,7 @@ def load_protocol(mat_path: str | None = None) -> Protocol:
     Position p has to mean the same (TI_p, TE_p) at training and at inference, so the
     arrays are never sorted or regrouped.
     """
+    # read the .mat file and flatten the arrays in stored order
     d = sio.loadmat(mat_path or _DEFAULT_MAT)
     ti = np.asarray(d["ti"], dtype=np.float64).flatten()
     te = np.asarray(d["te"], dtype=np.float64).flatten()
@@ -54,13 +55,17 @@ def load_protocol(mat_path: str | None = None) -> Protocol:
 
 def forward_numpy(protocol: Protocol, t1, t2, w, m0: float = 1.0) -> np.ndarray:
     """Noise-free signal for one voxel, shape (n_points,). T1, T2 in ms."""
+    # compartments as flat (K,) arrays
     t1 = np.asarray(t1, np.float64).ravel()
     t2 = np.asarray(t2, np.float64).ravel()
     w = np.asarray(w, np.float64).ravel()
+    # protocol times as columns so they broadcast against the K compartments
     ti = protocol.ti[:, None]                                  # (P, 1)
     te = protocol.te[:, None]
+    # inversion recovery in T1 and decay in T2, per (point, compartment)
     inv = 1.0 - 2.0 * np.exp(-ti / t1[None, :]) + np.exp(-protocol.tr / t1[None, :])   # (P, K)
     dec = np.exp(-te / t2[None, :])                            # (P, K)
+    # weighted sum over the compartments
     return m0 * ((inv * dec) * w[None, :]).sum(axis=1)         # (P,)
 
 
@@ -74,17 +79,23 @@ def forward_torch(protocol: Protocol, params, mask=None, m0: float = 1.0):
     """
     import torch
 
+    # protocol times on the same device and dtype as the prediction
     dev = params.device
     ti = torch.as_tensor(protocol.ti, dtype=params.dtype, device=dev)   # (P,)
     te = torch.as_tensor(protocol.te, dtype=params.dtype, device=dev)
     tr = float(protocol.tr)
+    # split the parameter table, clamping T1/T2 away from zero
     t1 = params[..., 0].clamp(min=1e-6).unsqueeze(1)           # (B, 1, K)
     t2 = params[..., 1].clamp(min=1e-6).unsqueeze(1)
     w = params[..., 2].unsqueeze(1)                            # (B, 1, K)
+    # an optional mask drops compartments by zeroing their weight
     if mask is not None:
         w = w * mask.unsqueeze(1)
+    # broadcast to (B, P, K)
     ti = ti.view(1, -1, 1)                                     # (1, P, 1)
     te = te.view(1, -1, 1)
+    # same equation as forward_numpy
     inv = 1.0 - 2.0 * torch.exp(-ti / t1) + torch.exp(-tr / t1)   # (B, P, K)
     dec = torch.exp(-te / t2)
+    # weighted sum over the compartments
     return m0 * (inv * dec * w).sum(dim=-1)                    # (B, P)

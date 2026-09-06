@@ -73,12 +73,14 @@ class Step:
     done: Callable[[], bool] | None = None                # replaces the outputs check
 
     def is_done(self) -> bool:
+        # custom check if given, otherwise every output must exist
         if self.done is not None:
             return self.done()
         return bool(self.outputs) and all(p.exists() for p in self.outputs)
 
 
 def rel(p: Path) -> str:
+    # path relative to the repository root, for printing
     return str(p.relative_to(ROOT)) if p.is_absolute() else str(p)
 
 
@@ -92,6 +94,7 @@ def checkpoint(run: str) -> tuple[Path, str]:
 
 def configs() -> dict[str, Path]:
     """Run name -> config path for every trained run of the matrix, in config order."""
+    # every YAML under configs/ except the documentation-only ones
     out = {}
     for p in sorted(ROOT.glob("configs/**/*.yaml")):
         name = yaml.safe_load(p.read_text())["name"]
@@ -108,6 +111,7 @@ CONFIGS = configs()
 # ---------------------------------------------------------------------------------------
 
 def data_stage(force: bool):
+    # one generator call per (family, compartment count)
     for family, extra in FAMILIES.items():
         for n in (1, 2, 3):
             d = Path("data") / family / f"n{n}"
@@ -118,6 +122,7 @@ def data_stage(force: bool):
 
 
 def train_stage(runs: list[str]):
+    # one experiment per run; needs its training parquets
     for name in runs:
         cfg = CONFIGS[name]
         paths = yaml.safe_load(cfg.read_text())["data"]["train_path"]
@@ -128,6 +133,7 @@ def train_stage(runs: list[str]):
 
 
 def evaluate_stage(runs: list[str]):
+    # three evaluation scripts per run, plus the query analysis for the reference
     for name in runs:
         ck = [checkpoint(name)]
         yield Step(f"nd-evaluation {name}",
@@ -143,6 +149,7 @@ def evaluate_stage(runs: list[str]):
 
 
 def aggregate_stage(runs: list[str]):
+    # cross-run tables, all reading the per-run evaluation dumps
     nd = RESULTS / "nd_evaluation"
     dumps = [(nd / f"{r}.json", "run `python main.py evaluate` first") for r in runs]
     yield Step("nd-summary", [PY, "evaluation/summarize_nd_evaluation.py"],
@@ -166,6 +173,7 @@ def aggregate_stage(runs: list[str]):
 
 
 def figures_stage():
+    # what each figure script needs
     both = [checkpoint(REFERENCE), checkpoint(FINAL)]
     ratio = [(RESULTS / "compartment_noise_ratio_test.parquet",
               "run `python main.py aggregate` first")]
@@ -188,6 +196,7 @@ def figures_stage():
          ratio),
         (["plot_threshold_sweep.py"], [FIGURES / "fig_threshold_sweep.png"], []),
     ]
+    # one step per figure script
     for args, outputs, needs in plan:
         yield Step(f"figure {' '.join(args)}",
                    [PY, f"evaluation/figures/{args[0]}", *args[1:]], outputs, needs)
@@ -207,11 +216,13 @@ def notebook_stage():
 # ---------------------------------------------------------------------------------------
 
 def run_steps(steps: list[Step], force: bool, dry: bool) -> None:
+    # skip finished steps, stop at a missing input, run the rest in order
     t_all = time.time()
     for s in steps:
         if not force and s.is_done():
             print(f"skip   {s.name}")
             continue
+        # a missing input is 'blocked' in a dry run and fatal otherwise
         missing = [(p, hint) for p, hint in s.needs if not p.exists()]
         if missing:
             p, hint = missing[0]
@@ -220,6 +231,7 @@ def run_steps(steps: list[Step], force: bool, dry: bool) -> None:
                 print(f"blocked {msg}")
                 continue
             sys.exit(f"stop   {msg}")
+        # run the script as a subprocess from the repository root
         shown = " ".join(["python", *s.cmd[1:]])
         print(f"{'plan' if dry else 'run '}   {s.name}: {shown}", flush=True)
         if dry:
@@ -232,6 +244,7 @@ def run_steps(steps: list[Step], force: bool, dry: bool) -> None:
 
 
 def main(argv=None) -> None:
+    # command line
     ap = argparse.ArgumentParser(
         usage="main.py [STAGE ...] [--runs RUN [RUN ...]] [--force] [--dry-run]",
         description="Run the thesis pipeline end to end, or the named stages of it.",
@@ -245,6 +258,7 @@ def main(argv=None) -> None:
     ap.add_argument("--dry-run", action="store_true", help="print the plan and run nothing")
     a = ap.parse_args(argv)
 
+    # argument checks
     bad = sorted(set(a.stages) - set(STAGES))
     if bad:
         ap.error(f"unknown stage(s) {bad}; choose from {', '.join(STAGES)}")
@@ -258,6 +272,7 @@ def main(argv=None) -> None:
     if bad:
         ap.error(f"unknown run(s) {bad}; known: {', '.join(CONFIGS)}")
 
+    # build the step list in stage order and run it
     build = {
         "data": lambda: data_stage(a.force),
         "train": lambda: train_stage(runs),

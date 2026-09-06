@@ -77,6 +77,7 @@ def voxel_rng(
     Distinct SeedSequence keys cannot collide the way arithmetic seed offsets can. Streams are
     reproducible for a pinned NumPy version only; the manifest records the version.
     """
+    # five-integer key -> its own independent generator
     return np.random.default_rng(
         np.random.SeedSequence([int(base_seed), int(n_comp), int(split_code), int(voxel_id), int(stream_id)])
     )
@@ -100,6 +101,7 @@ def validate_ranges(
     has no retry, so every T1 must admit a T2, i.e. t2_min < t1_min; otherwise the conditional
     draw would fail deep inside numpy with "high - low < 0". The check is therefore mode-aware.
     """
+    # each range must be a proper positive interval
     validate_sampling(sampling)
     lo1, hi1 = t1_range
     lo2, hi2 = t2_range
@@ -107,6 +109,7 @@ def validate_ranges(
         raise ValueError(f"t1_range must satisfy 0 < min < max; got {t1_range}")
     if not (0 < lo2 < hi2):
         raise ValueError(f"t2_range must satisfy 0 < min < max; got {t2_range}")
+    # there must be room for T2 < T1
     if lo2 >= hi1:
         raise ValueError(
             f"t2_min ({lo2}) >= t1_max ({hi1}): no (T1, T2) with T2 < T1 exists in these ranges."
@@ -124,6 +127,7 @@ def sample_weights(n_comp: int, rng: np.random.Generator, min_weight: float = MI
     """Weights summing to one, none below min_weight: symmetric Dirichlet rescaled onto the floor."""
     if n_comp * min_weight >= 1.0:
         raise ValueError(f"n_comp * min_weight = {n_comp * min_weight} >= 1.")
+    # flat Dirichlet, then squeezed so every weight is at least min_weight
     raw = rng.dirichlet(np.ones(n_comp))
     return raw * (1.0 - n_comp * min_weight) + min_weight
 
@@ -161,6 +165,7 @@ def sample_random_compartment(
     cannot be told apart), which is why the mode is recorded in the manifest under
     physics.sampling.
     """
+    # ranges in ms, drawn in log space
     validate_ranges(t1_range, t2_range, sampling)
     lo1, hi1 = t1_range
     lo2, hi2 = t2_range
@@ -213,15 +218,19 @@ def sample_voxel_spec(
     if not 1 <= n_comp <= MAX_COMP:
         raise ValueError(f"n_comp must be in 1..{MAX_COMP}; got {n_comp}")
 
+    # parameter stream of this voxel
     rng = voxel_rng(base_seed, n_comp, split_code, voxel_id, STREAM_PARAMS)
 
+    # one (T1, T2) pair per compartment
     t1 = np.empty(n_comp)
     t2 = np.empty(n_comp)
     for i in range(n_comp):
         t1[i], t2[i] = sample_random_compartment(rng, t1_range, t2_range, sampling=sampling)
 
+    # signal fractions summing to one
     w = sample_weights(n_comp, rng)
 
+    # SNR from its own stream unless pinned
     if snr is None:
         snr_rng = voxel_rng(base_seed, n_comp, split_code, voxel_id, STREAM_SNR)
         snr = float(snr_rng.uniform(snr_min, snr_max))

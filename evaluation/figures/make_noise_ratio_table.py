@@ -25,6 +25,7 @@ from t1t2.physics import forward_numpy, load_protocol
 RUNS = {"found_reference": "baseline_v2_reproduction", "found_final": "loss_uniform"}
 OUT = Path("results/compartment_noise_ratio_test.parquet")
 
+# test set and protocol
 cfg = load_config(f"configs/{RUNS['found_reference']}.yaml")
 test = pd.concat([pd.read_parquet(p) for p in cfg.data.test_path], ignore_index=True)
 proto = load_protocol()
@@ -39,6 +40,7 @@ for col, run in RUNS.items():
     found[col] = [{r["gt"] for r in recs if r["gt"] is not None and r["prob"] >= theta}
                   for recs in records]
 
+# one row per true compartment with the peak amplitude of its own signal over sigma
 rows = []
 for v, row in test.iterrows():
     for c in range(int(row["n_comp"])):
@@ -48,6 +50,7 @@ for v, row in test.iterrows():
                      "sigma": row["sigma"], "r": amp / row["sigma"], "snr": row["snr"],
                      **{col: c in found[col][v] for col in RUNS}})
 D = pd.DataFrame(rows)
+# bins used by the figure
 D["rbin"] = pd.cut(D.r, [-np.inf, 2, 3, 5, 10, 20, 50, np.inf],
                    labels=["<2", "2-3", "3-5", "5-10", "10-20", "20-50", ">50"])
 D["wbin"] = pd.cut(D.w, [-np.inf, 0.1, 0.3, 0.6, np.inf],

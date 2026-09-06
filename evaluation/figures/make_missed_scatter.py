@@ -37,11 +37,13 @@ RUNS = [("baseline_v2_reproduction", "reference (baseline)"),
 
 def collect(run):
     """Separate found and missed compartments by T2 and signal fraction."""
+    # inference, then the ND rule per voxel
     loaded = load_run(ROOT / "results" / run)
     cfg, spans, thr = loaded.cfg, loaded.spans, loaded.fitted_threshold
     q, all_trues = loaded.predict("test")
     P = np.asarray(q["params"]); E = np.asarray(q["exist_prob"])
     F, M = [], []
+    # (T2, w) of every compartment, split by found or missed
     for i, trues in enumerate(all_trues):
         recs = ndm.voxel_records(P[i], E[i], trues, spans, TAU, exist_thresh=thr)
         hit = {r["gt"] for r in recs if r["gt"] is not None}
@@ -51,6 +53,7 @@ def collect(run):
     return np.asarray(F), np.asarray(M), cfg, thr
 
 
+# one panel per run in the (T2, w) plane
 fig, axes = plt.subplots(1, 2, figsize=(10.0, 4.6), sharey=True)
 for ax, (run, label) in zip(axes, RUNS):
     F, M, cfg, thr = collect(run)

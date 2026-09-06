@@ -36,6 +36,7 @@ mpl.rcParams.update({"figure.dpi": 120, "savefig.dpi": 300, "savefig.bbox": "tig
 TAU, RUN, TE_MAX = 0.07, "loss_uniform", 150.0
 MIN_N = 25
 
+# inference on the test split
 loaded = load_run(ROOT / "results" / RUN)
 cfg, spans, thr = loaded.cfg, loaded.spans, loaded.fitted_threshold
 q, all_trues = loaded.predict("test")
@@ -43,6 +44,7 @@ P = np.asarray(q["params"]); E = np.asarray(q["exist_prob"])
 
 det_x, det_y, det_f = [], [], []          # every true compartment: found or not (ND rule)
 err_x, err_y, err1, err2 = [], [], [], [] # every matched pair: relative errors
+# per voxel: ND records decide found/missed, the Hungarian match gives the errors
 for i, trues in enumerate(all_trues):
     recs = ndm.voxel_records(P[i], E[i], trues, spans, TAU, exist_thresh=thr)
     hit = {r["gt"] for r in recs if r["gt"] is not None}
@@ -56,6 +58,7 @@ for i, trues in enumerate(all_trues):
         err2.append(abs(pp[1] - tt[1]) / tt[1] * 100)
 print(f"{RUN}: {len(det_x)} true compartments, {len(err_x)} matched pairs, theta {thr}")
 
+# log-spaced bin edges over the training ranges
 xe = np.logspace(np.log10(cfg.data.t1_min), np.log10(cfg.data.t1_max), 23)
 ye = np.logspace(np.log10(cfg.data.t2_min), np.log10(cfg.data.t2_max), 23)
 lx, ly = np.log(xe), np.log(ye)
@@ -68,12 +71,14 @@ def binned(x, y, v, stat):
     return np.where(n >= MIN_N, s, np.nan)
 
 
+# three binned maps
 panels = [
     ("share of compartments found (%)", binned(det_x, det_y, det_f, "mean") * 100, "viridis", (0, 100)),
     ("median rel. $T_1$ error (%)", binned(err_x, err_y, err1, "median"), "magma_r", (0, 12)),
     ("median rel. $T_2$ error (%)", binned(err_x, err_y, err2, "median"), "magma_r", (0, 12)),
 ]
 fig, axes = plt.subplots(1, 3, figsize=(11.5, 3.6))
+# draw each map with the T2 = T1 diagonal and the longest-TE line
 for ax, (title, M, cmap, clim) in zip(axes, panels):
     pc = ax.pcolormesh(xe, ye, M.T, cmap=cmap, vmin=clim[0], vmax=clim[1], shading="flat")
     ax.set_xscale("log"); ax.set_yscale("log")

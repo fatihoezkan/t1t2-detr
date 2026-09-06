@@ -55,6 +55,7 @@ def loglabels(ax, which="both"):
         axis.set_major_formatter(mticker.FuncFormatter(fmt))
 
 
+# inference on the test split; a query 'works' if it fires in more than 1 % of the voxels
 loaded = load_run(ROOT / "results" / RUN)
 cfg, theta = loaded.cfg, loaded.fitted_threshold
 q, _ = loaded.predict("test")
@@ -70,6 +71,7 @@ gs = fig.add_gridspec(2, 4, height_ratios=[1, 1.05], hspace=0.50, wspace=0.28)
 
 # (a) how often each of the ten queries fires
 ax = fig.add_subplot(gs[0, :2])
+# grey bars, coloured for the working queries
 cols = ["0.80"] * Q
 for k, j in enumerate(work): cols[j] = QCOL[k]
 ax.bar(np.arange(1, Q + 1), 100 * rate, color=cols, width=0.72)
@@ -85,6 +87,7 @@ ax.set_ylim(0, 78); ax.set_title("(a) Four of the ten queries do all the work")
 
 # (b) predicted compartment fraction: this is what they split
 ax = fig.add_subplot(gs[0, 2:])
+# predicted weight of each working query when it fires
 data = [P[:, j, 2][E[:, j] >= theta] for j in work]
 bp = ax.boxplot(data, vert=False, widths=0.62, showfliers=False, patch_artist=True,
                 medianprops=dict(color="white", lw=1.6))
@@ -104,11 +107,13 @@ ax.set_title("(b) What they do divide up is compartment size")
 # (c) where each working query looks in the (T1, T2) plane
 t1e = np.logspace(np.log10(50), np.log10(4000), 33)
 t2e = np.logspace(np.log10(5), np.log10(600), 33)
+# 2-D histogram of the (T1, T2) predictions of each working query
 H = []
 for j in work:
     m = E[:, j] >= theta
     h, _, _ = np.histogram2d(P[m, j, 0], P[m, j, 1], bins=[t1e, t2e])
     H.append(h / max(h.max(), 1))
+# one panel per working query
 for k, (j, h) in enumerate(zip(work, H)):
     ax = fig.add_subplot(gs[1, k])
     ax.pcolormesh(t1e, t2e, h.T, cmap="YlGnBu", vmin=0, vmax=1, shading="auto")

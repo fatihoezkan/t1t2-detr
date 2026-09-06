@@ -155,6 +155,7 @@ class ExperimentConfig:
     def save(self, path: str | Path) -> None:
         """Write the config as YAML, keeping the section order (sort_keys=False) so a saved
         config diffs cleanly against its source."""
+        # create the parent folder, then dump the sections in definition order
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w") as f:
@@ -163,6 +164,7 @@ class ExperimentConfig:
 
 def load_config(path: str | Path) -> ExperimentConfig:
     """Read a YAML file into an ExperimentConfig."""
+    # parse the YAML into a plain dict, then into the dataclasses
     with open(path) as f:
         raw = yaml.safe_load(f)
     return from_dict(raw)
@@ -190,7 +192,9 @@ def from_dict(raw: dict) -> ExperimentConfig:
     dropped. Retired keys are dropped after their value is checked (see _RETIRED).
     opt_betas comes back from YAML as a list and the optimiser wants a tuple.
     """
+    # shallow-copy every section so popping retired keys does not touch the caller's dict
     raw = {k: (dict(v) if isinstance(v, dict) else v) for k, v in raw.items()}
+    # drop retired keys, refusing any value other than the one still implemented
     for (section, key), only in _RETIRED.items():
         if key in raw.get(section, {}):
             value = raw[section].pop(key)
@@ -199,14 +203,17 @@ def from_dict(raw: dict) -> ExperimentConfig:
                     f"{section}.{key}={value!r} is no longer supported; every reported run "
                     f"used {only!r}, which is now the only behaviour."
                 )
+    # build each section; a misspelled key raises TypeError here
     data = DataConfig(**raw["data"])
     model = ModelConfig(**raw.get("model", {}))
     loss = LossConfig(**raw.get("loss", {}))
     train_raw = raw.get("train", {})
+    # YAML gives a list, AdamW wants a tuple
     if train_raw.get("opt_betas") is not None:
         train_raw["opt_betas"] = tuple(train_raw["opt_betas"])
     train = TrainConfig(**train_raw)
     evaluation = EvaluationConfig(**raw.get("evaluation", {}))
+    # assemble the full experiment config
     return ExperimentConfig(
         name=raw["name"],
         data=data,

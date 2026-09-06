@@ -38,12 +38,14 @@ OUT = ROOT / "figures" / ("15_found_missed_map7.png" if MAP7 else "14_found_miss
 
 def found_missed(run):
     """Collect T1 and T2 values for found and missed compartments."""
+    # inference, then the ND rule per voxel
     loaded = load_run(ROOT / "results" / run)
     cfg, spans = loaded.cfg, loaded.spans
     thr = 0.0 if MAP7 else loaded.fitted_threshold
     q, all_trues = loaded.predict("test")
     P = np.asarray(q["params"]); E = np.asarray(q["exist_prob"])
     F, M = [], []
+    # a true compartment is found if some record was assigned to it
     for i, trues in enumerate(all_trues):
         recs = ndm.voxel_records(P[i], E[i], trues, spans, TAU, exist_thresh=thr)
         hit = {r["gt"] for r in recs if r["gt"] is not None}
@@ -53,6 +55,7 @@ def found_missed(run):
     return np.asarray(F), np.asarray(M), cfg, thr
 
 
+# one panel per run: all compartments in grey, matched in blue, unmatched in red
 fig, axes = plt.subplots(1, 2, figsize=(10.0, 4.6), sharey=True)
 for ax, (run, label) in zip(axes, RUNS):
     F, M, cfg, thr = found_missed(run)

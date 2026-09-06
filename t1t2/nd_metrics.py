@@ -23,6 +23,7 @@ def log_spans(t1_min, t1_max, t2_min, t2_max):
     are what tau is a fraction of, so they must come from the training config, not from the
     data at hand.
     """
+    # log(max) - log(min) for T1 and T2
     return (float(np.log(t1_max) - np.log(t1_min)),
             float(np.log(t2_max) - np.log(t2_min)))
 
@@ -48,19 +49,23 @@ def voxel_records(params, probs, trues, spans, tau, exist_thresh=0.0,
     trues, or None), dt1_ms, dt2_ms, dw and nd_sum. gt=None means the query passed the
     existence filter but matched no ground-truth compartment.
     """
+    # ground truth in log space, (K, 2)
     span1, span2 = spans
     recs = []
     if len(trues):
         T = np.asarray(trues, dtype=np.float64)          # (K, 3)
         logT = np.log(np.maximum(T[:, :2], 1e-9))
+    # one record per query above the existence threshold
     for q in range(len(probs)):
         p = float(probs[q])
         if p < exist_thresh:
             continue
         t1, t2, w = (float(params[q, 0]), float(params[q, 1]), float(params[q, 2]))
+        # default: matched nothing
         rec = {"prob": p, "gt": None, "dt1_ms": np.nan, "dt2_ms": np.nan,
                "dw": np.nan, "nd_sum": np.inf}
         if len(trues):
+            # normalised distance to every true compartment, per dimension
             lp1, lp2 = np.log(max(t1, 1e-9)), np.log(max(t2, 1e-9))
             nd1 = np.abs(lp1 - logT[:, 0]) / span1       # (K,)
             nd2 = np.abs(lp2 - logT[:, 1]) / span2
@@ -70,6 +75,7 @@ def voxel_records(params, probs, trues, spans, tau, exist_thresh=0.0,
                 nd3 = np.abs(w - T[:, 2]) / 1.0          # w span is the unit interval
                 ok = ok & (nd3 <= tau)
                 nd_rank = nd_rank + nd3
+            # among the accepted candidates, take the smallest ND sum
             if ok.any():
                 nd_sum = np.where(ok, nd_rank, np.inf)   # sum only ranks candidates
                 g = int(np.argmin(nd_sum))
@@ -88,6 +94,7 @@ def dataset_records(query_outputs, trues, spans, tau, exist_thresh=0.0,
     query_outputs is the raw table from eval.detr_query_outputs: params (N, Q, 3) in physical
     units and exist_prob (N, Q). Returns (records_per_voxel, n_gt_per_voxel).
     """
+    # per-voxel records and the number of ground-truth compartments per voxel
     params = np.asarray(query_outputs["params"])
     probs = np.asarray(query_outputs["exist_prob"])
     recs = [voxel_records(params[i], probs[i], trues[i], spans, tau, exist_thresh,
@@ -109,6 +116,7 @@ def map_101_from_records(recs_per_voxel, n_gt_per_voxel, voxel_ids=None):
 
     Returns (mAP, precisions, recalls).
     """
+    # pool every prediction with its confidence and a (voxel, gt) key; -1 = matched nothing
     if voxel_ids is None:
         voxel_ids = range(len(recs_per_voxel))
     conf, keys = [], []
@@ -120,17 +128,20 @@ def map_101_from_records(recs_per_voxel, n_gt_per_voxel, voxel_ids=None):
             keys.append(-1 if r["gt"] is None else uid * 64 + r["gt"])
     if total_gt == 0 or not conf:
         return 0.0, np.zeros(0), np.zeros(0)
+    # rank by confidence, highest first
     conf = np.asarray(conf)
     keys = np.asarray(keys, dtype=np.int64)
     order = np.argsort(-conf, kind="stable")
     keys = keys[order]
 
+    # the first claim on a (voxel, gt) pair is a true positive, everything else a false positive
     tp = np.zeros(len(keys), dtype=np.float64)
     seen = set()
     for i, k in enumerate(keys):
         if k >= 0 and k not in seen:
             tp[i] = 1.0
             seen.add(int(k))
+    # running precision and recall down the ranked list
     acc_tp = np.cumsum(tp)
     acc_fp = np.cumsum(1.0 - tp)
     recalls = acc_tp / total_gt
@@ -155,10 +166,12 @@ def exact_metrics_from_records(recs_per_voxel, n_gt_per_voxel):
     the ND gate bounds every term, but it improves as recall falls, so never read it without
     the recall beside it. Medians are kept as secondary columns.
     """
+    # count TP/FP/FN and collect the true-positive errors
     TP = FP = FN = 0
     dt1, dt2, dw = [], [], []
     n_pred = 0
     for recs, n_gt in zip(recs_per_voxel, n_gt_per_voxel):
+        # group the voxel's predictions by the ground truth they were assigned to
         by_gt = {}
         for r in recs:
             n_pred += 1
@@ -166,6 +179,7 @@ def exact_metrics_from_records(recs_per_voxel, n_gt_per_voxel):
                 FP += 1
             else:
                 by_gt.setdefault(r["gt"], []).append(r)
+        # per ground truth: the best-confidence hit is the TP, extra hits are FPs, no hit is a FN
         for g in range(int(n_gt)):
             hits = by_gt.get(g, [])
             if hits:
@@ -177,6 +191,7 @@ def exact_metrics_from_records(recs_per_voxel, n_gt_per_voxel):
                 dw.append(best["dw"])
             else:
                 FN += 1
+    # precision, recall, F1
     precision = TP / (TP + FP) if TP + FP else 0.0
     recall = TP / (TP + FN) if TP + FN else 0.0
     f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
@@ -201,10 +216,12 @@ def calibrate_threshold_nd(query_outputs, trues, spans, tau=TAU_BASE,
     maps each threshold to its exact metrics. The original searches on test; this runs on
     validation, so no test data enters the choice, and the result is applied unchanged to test.
     """
+    # default grid 0.25 .. 0.75
     if grid is None:
         grid = [round(0.25 + 0.05 * i, 2) for i in range(11)]   # 0.25 .. 0.75
     table = {}
     best_t, best_f1 = grid[0], -1.0
+    # score every threshold, keep the best F1
     for t in grid:
         recs, n_gt = dataset_records(query_outputs, trues, spans, tau, exist_thresh=t)
         m = exact_metrics_from_records(recs, n_gt)
@@ -224,11 +241,13 @@ def stratified_map(query_outputs, trues, spans, tau=TAU_BASE, weight_bins=(0.3, 
     which makes the absolute values optimistic: compare strata or models with each other, not
     against the global mAP.
     """
+    # records at threshold 0, so every prediction is ranked
     w_small, w_large = weight_bins
     recs, n_gt = dataset_records(query_outputs, trues, spans, tau, exist_thresh=0.0)
 
     def _subset_map(gt_mask_fn):
         """Measure average precision for a chosen group of true compartments."""
+        # keep only predictions assigned to ground truth in this stratum
         conf, keys = [], []
         total_gt = 0
         for v, t in enumerate(trues):
@@ -239,6 +258,7 @@ def stratified_map(query_outputs, trues, spans, tau=TAU_BASE, weight_bins=(0.3, 
                 if r["gt"] is not None and r["gt"] in sel_set:
                     conf.append(r["prob"])
                     keys.append(v * 64 + r["gt"])
+        # same 101-point AP as map_101_from_records
         if total_gt == 0:
             return float("nan"), 0
         conf = np.asarray(conf)
@@ -258,6 +278,7 @@ def stratified_map(query_outputs, trues, spans, tau=TAU_BASE, weight_bins=(0.3, 
         p_at = np.where(idx < len(p_mono), p_mono[np.minimum(idx, len(p_mono) - 1)], 0.0)
         return float(p_at.mean()), total_gt
 
+    # strata: three weight bins and each compartment count
     out = {"by_weight": {}, "by_n_comp": {}}
     for label, fn in [
         (f"w<{w_small}", lambda g, n: g[2] < w_small),
@@ -280,6 +301,7 @@ def bootstrap_map_ci(recs_per_voxel, n_gt_per_voxel, n_boot=500, seed=20260810,
     interval is on the difference (this model minus the other). Returns a percentile 95 %
     interval as {"lo", "hi", "n_boot"}.
     """
+    # resample voxels with replacement, n_boot times
     rng = np.random.default_rng(seed)
     n = len(recs_per_voxel)
     stats = []
@@ -291,5 +313,6 @@ def bootstrap_map_ci(recs_per_voxel, n_gt_per_voxel, n_boot=500, seed=20260810,
             stats.append(m1 - m2)
         else:
             stats.append(m1)
+    # percentile interval
     lo, hi = np.percentile(stats, [2.5, 97.5])
     return {"lo": float(lo), "hi": float(hi), "n_boot": n_boot}

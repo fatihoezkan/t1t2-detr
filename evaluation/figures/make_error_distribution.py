@@ -39,13 +39,14 @@ OUT_FIG = ROOT / "figures" / "19_error_distribution.png"
 OUT_JSON = RESULTS / "error_distribution_summary.json"
 OUT_FIG.parent.mkdir(parents=True, exist_ok=True)
 
+# ground truth of the test set from the parquets
 cfg = load_config(RESULTS / "loss_uniform" / "config.yaml")
 df = pd.concat([pd.read_parquet(p) for p in cfg.data.test_path], ignore_index=True)
 kmax = max(int(c.split("_")[1]) for c in df.columns if c.startswith("T1_"))
 trues = [[(getattr(r, f"T1_{k}"), getattr(r, f"T2_{k}"), getattr(r, f"w_{k}"))
           for k in range(1, kmax + 1) if np.isfinite(getattr(r, f"T1_{k}"))]
          for r in df.itertuples(index=False)]
-K = np.array([len(t) for t in trues])
+K = np.array([len(t) for t in trues])  # compartment count per voxel
 # The shaded band marks where the tau = 7 % acceptance edge of the strict rule falls in
 # relative terms. It is a share of the log range, hence asymmetric: -26/+35 % for T1,
 # -28/+38 % for T2.
@@ -53,6 +54,7 @@ span1 = np.log(cfg.data.t1_max / cfg.data.t1_min); span2 = np.log(cfg.data.t2_ma
 band1 = (100 * (1 - np.exp(-0.07 * span1)), 100 * (np.exp(0.07 * span1) - 1))
 band2 = (100 * (1 - np.exp(-0.07 * span2)), 100 * (np.exp(0.07 * span2) - 1))
 
+# inference for both runs, matched-pair errors and their percentiles
 data, summary = {}, {}
 for run, label, col in RUNS:
     loaded = load_run(RESULTS / run)
@@ -70,7 +72,9 @@ for run, label, col in RUNS:
         pred = [(float(P[i, k, 0]), float(P[i, k, 1]), float(P[i, k, 2])) for k in np.where(E[i] >= thr)[0]]
         for pp, tt in _match(pred, tr):
             rows.append((K[i], tt[2], abs(pp[0] - tt[0]) / tt[0] * 100, abs(pp[1] - tt[1]) / tt[1] * 100, abs(pp[2] - tt[2])))
+    # columns: K, true w, rel T1 err (%), rel T2 err (%), abs w err
     A = np.array(rows); data[label] = A
+    # percentiles overall and per K
     s = {"theta_fit": thr, "n_matched": int(len(A))}
     for name, j in (("t1_rel", 2), ("t2_rel", 3), ("w_abs", 4)):
         s[name] = {"median": float(np.median(A[:, j])), "p75": float(np.percentile(A[:, j], 75)),
@@ -90,6 +94,7 @@ def ecdf(ax, x, **kw):
     x = np.sort(x); ax.plot(x, np.arange(1, len(x) + 1) / len(x) * 100, **kw)
 
 
+# three ECDF panels: T1, T2, weight; one line per (run, K)
 fig, axes = plt.subplots(1, 3, figsize=(11.5, 3.6))
 titles = ["relative $T_1$ error (%)", "relative $T_2$ error (%)", "absolute signal-fraction error"]
 for j, ax in enumerate(axes):
@@ -100,6 +105,7 @@ for j, ax in enumerate(axes):
             m = A[:, 0] == k
             ecdf(ax, A[m, col_idx], color=col, ls=LS[k], lw=1.3,
                  label=f"{label}, $K={k}$")
+    # acceptance band on the T1/T2 panels, a line at tau on the weight panel
     if j < 2:
         band = band1 if j == 0 else band2
         ax.axvspan(band[0], band[1], color="#c65911", alpha=0.12, lw=0)

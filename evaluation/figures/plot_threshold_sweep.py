@@ -27,6 +27,7 @@ HIGHLIGHT = {
 OTHERS = ["data_loguniform", "queries_6", "aux_loss", "decoder_2", "decoder_6",
           "exist_head_shared", "physics_clean", "physics_noisy"]
 
+# left: 2-D rule, right: 3-D rule; grey for the other runs, coloured for the highlighted ones
 fig, axes = plt.subplots(1, 2, figsize=(10.4, 4.3), sharey=True)
 for ax, dim, title in zip(axes, ("2d", "3d"),
                           ("2D: $T_1$ and $T_2$", "3D: $T_1$, $T_2$ and weight")):
@@ -38,6 +39,7 @@ for ax, dim, title in zip(axes, ("2d", "3d"),
         d = json.load(open(SWEEP / f"{run}.json"))[dim]
         ax.plot([r["threshold"] for r in d], [r["voxel_acc"] for r in d],
                 color=color, lw=lw, ls=ls, label=label, zorder=3)
+    # the two declared thresholds
     for t in (0.5, 0.75):
         ax.axvline(t, color="#555555", ls=":", lw=1.1, zorder=2)
         ax.text(t, 0.985, f"{t:.2f}", fontsize=8, color="#555555",
