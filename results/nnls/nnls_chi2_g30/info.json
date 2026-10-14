@@ -1,0 +1,43 @@
+{
+  "data_root": "external:t1t2_physics_detr/data",
+  "family": "t1_3500_t2_500_100k",
+  "splits": [
+    "val",
+    "test"
+  ],
+  "n_samples": 0,
+  "reg": "chi2",
+  "chi2_factor": 1.02,
+  "lam": 0.05,
+  "n_grid": 30,
+  "n_slots": 10,
+  "t1_range": [
+    50.0,
+    3500.0
+  ],
+  "t2_range": [
+    5.0,
+    500.0
+  ],
+  "protocol_file": "datagen/data/ti_te_dict.mat",
+  "run_name": "nnls_chi2_g30",
+  "out_dir": "results/nnls",
+  "workers": 14,
+  "method": "nnls",
+  "n_atoms": 771,
+  "ported_from": "Endt DETR_T1T2 baseline/nnls_baseline.py",
+  "val": {
+    "n_voxels": 9999,
+    "wall_s": 180.2,
+    "cpu_s_per_voxel": 0.23877971264448147,
+    "lambda_median": 0.056234132519034884,
+    "peaks_per_voxel_mean": 3.9412941294129413
+  },
+  "test": {
+    "n_voxels": 9999,
+    "wall_s": 182.0,
+    "cpu_s_per_voxel": 0.240715620867984,
+    "lambda_median": 0.056234132519034884,
+    "peaks_per_voxel_mean": 3.9468946894689467
+  }
+}
