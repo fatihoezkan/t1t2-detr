@@ -6,9 +6,9 @@ stratified_map, evaluation.threshold_sweep.score / score_by_k, and eval.paramete
 
 Operating point: the confidence threshold is calibrated on the validation split, once for best
 strict voxel accuracy and once for best F1, then applied unchanged to test. The grid runs from
-0.01 because NNLS confidence is a signal fraction, so a three-compartment voxel cannot exceed
-about 0.33 per peak; the DETR grid (0.05 to 0.95 on an existence probability) would discard true
-compartments by construction. mAP needs no threshold and is the threshold-free comparison.
+0.01 because NNLS confidence is a signal fraction, which can be much smaller than a DETR
+existence probability. Fractions need not be equal (e.g. 0.8, 0.1, 0.1 for K=3). mAP needs no
+operating threshold, but depends on each method's confidence ranking.
 
 Usage: PYTHONPATH=.:datagen python baseline/score_nnls.py nnls_chi2_g50 [...]
 """
@@ -44,10 +44,10 @@ def load(run, split):
     return q, trues, n_comp
 
 
-def calibrate(run):
+def calibrate(run, spans=SPANS):
     """Best-strict-accuracy and best-F1 thresholds on validation."""
     q, trues, _ = load(run, "val")
-    recs, ngt = dataset_records(q, trues, SPANS, TAU_BASE, exist_thresh=EPS)
+    recs, ngt = dataset_records(q, trues, spans, TAU_BASE, exist_thresh=EPS)
     rows = [score(recs, ngt, T) for T in GRID]
     best_strict = max(rows, key=lambda r: r["voxel_acc"])
     best_f1 = max(rows, key=lambda r: r["f1"])
@@ -58,21 +58,23 @@ def calibrate(run):
 
 def main(runs):
     for run in runs:
-        cal = calibrate(run)
+        info = json.loads((Path("results/nnls") / run / "info.json").read_text())
+        spans = log_spans(*info["t1_range"], *info["t2_range"])
+        cal = calibrate(run, spans)
         q, trues, n_comp = load(run, "test")
-        recs, ngt = dataset_records(q, trues, SPANS, TAU_BASE, exist_thresh=EPS)
-        out = {"run": run, "n_voxels": len(trues), "tau": TAU_BASE, "spans": SPANS,
+        recs, ngt = dataset_records(q, trues, spans, TAU_BASE, exist_thresh=EPS)
+        out = {"run": run, "n_voxels": len(trues), "tau": TAU_BASE, "spans": spans,
                "calibration": cal,
                # map_101_from_records returns (mAP, precisions, recalls); keep the scalar
                "mAP": {f"mAP@{int(t * 100)}": map_101_from_records(
-                   *dataset_records(q, trues, SPANS, t, exist_thresh=EPS))[0]
+                   *dataset_records(q, trues, spans, t, exist_thresh=EPS))[0]
                    for t in TAUS_DEFAULT},
                "sweep": [score(recs, ngt, T) for T in GRID],
                "at_theta_strict": score(recs, ngt, cal["theta_strict"]),
                "at_theta_f1": score(recs, ngt, cal["theta_f1"]),
                "by_k": {"theta_strict": score_by_k(recs, ngt, cal["theta_strict"]),
                         "theta_f1": score_by_k(recs, ngt, cal["theta_f1"])},
-               "stratified_map": stratified_map(q, trues, SPANS, TAU_BASE)}
+               "stratified_map": stratified_map(q, trues, spans, TAU_BASE)}
         if HAVE_EVAL:
             preds = predictions_from_query_outputs(q, exist_thresh=cal["theta_strict"])
             rec = parameter_recovery_analysis(preds, trues, weight_bins=WEIGHT_BINS)

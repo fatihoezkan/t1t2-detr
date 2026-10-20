@@ -36,6 +36,13 @@ FIELDS = ["method", "mAP5", "mAP7", "mAP7_range", "mAP10", "theta", "strict", "s
           "map7_k1", "map7_k2", "map7_k3"]
 
 
+def common_per_k_definition(strata):
+    definitions = {s.get("definitions", {}).get("by_n_comp", "legacy conditional AP") for s in strata}
+    if len(definitions) != 1:
+        raise ValueError("Mixed per-K AP definitions; rescore ALL methods with the same scorer before comparison")
+    return definitions.pop()
+
+
 def _at(sweep, theta):
     """The sweep row at one threshold; the grid is in steps of 0.05, so this is an exact lookup."""
     for row in sweep["2d"]:
@@ -46,6 +53,7 @@ def _at(sweep, theta):
 
 def detr_row(label, runs):
     nd = [json.loads(Path(f"results/nd_evaluation/{r}.json").read_text()) for r in runs]
+    definition = common_per_k_definition([d["stratified_map7"] for d in nd])
     tv = [json.loads(Path(f"results/threshold_val/{r}.json").read_text()) for r in runs]
     sw = [json.loads(Path(f"results/threshold_sweep/{r}.json").read_text()) for r in runs]
     pt = [_at(s, v["val_theta"]) for s, v in zip(sw, tv)]
@@ -53,7 +61,7 @@ def detr_row(label, runs):
     strict = [v["test_voxel_acc_at_val_theta"] for v in tv]
     w = lambda band: np.mean([d["stratified_map7"]["by_weight"][band]["map"] for d in nd])  # noqa: E731
     k = lambda n: np.mean([d["stratified_map7"]["by_n_comp"][f"n_comp={n}"]["map"] for d in nd])  # noqa: E731
-    return dict(method=label,
+    return dict(method=label, _per_k_definition=definition,
                 mAP5=np.mean([d["map"]["map@5"] for d in nd]), mAP7=np.mean(m7),
                 mAP7_range=np.ptp(m7), mAP10=np.mean([d["map"]["map@10"] for d in nd]),
                 theta=np.mean([v["val_theta"] for v in tv]),
@@ -68,7 +76,8 @@ def detr_row(label, runs):
 def nnls_row(run, label):
     n = json.loads((Path("results/nnls") / run / "nd_scores.json").read_text())
     s, st = n["at_theta_strict"], n["stratified_map"]
-    return dict(method=label, mAP5=n["mAP"]["mAP@5"], mAP7=n["mAP"]["mAP@7"],
+    return dict(method=label, _per_k_definition=common_per_k_definition([st]),
+                mAP5=n["mAP"]["mAP@5"], mAP7=n["mAP"]["mAP@7"],
                 mAP7_range=float("nan"), mAP10=n["mAP"]["mAP@10"],
                 theta=n["calibration"]["theta_strict"], strict=s["voxel_acc"],
                 strict_range=float("nan"), count=s["count_acc"], precision=s["precision"],
@@ -85,6 +94,9 @@ def main(out_path):
     rows = [detr_row(label, runs) for label, runs in FAMILIES.items()]
     rows += [nnls_row(run, label) for run, label in NNLS_RUNS
              if (Path("results/nnls") / run / "nd_scores.json").exists()]
+    common_per_k_definition([{"definitions": {"by_n_comp": r["_per_k_definition"]}} for r in rows])
+    for row in rows:
+        row.pop("_per_k_definition")
     with open(out_path, "w", newline="") as fh:
         writer = csv.DictWriter(fh, fieldnames=FIELDS)
         writer.writeheader()

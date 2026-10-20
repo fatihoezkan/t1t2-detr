@@ -33,8 +33,12 @@ feature's range in log space:
 
 Among the candidates that pass, the assignment goes to the one with the smallest ND sum. The
 sum only ranks candidates that already passed, so one badly wrong dimension cannot be averaged
-away by a good one. Log space makes tau a relative error budget and matches the log-space
-costs of the training loss. The weight is excluded from the test and reported separately.
+away by a good one. Tau is a fraction of the log range, not physical relative error. At tau=.07
+the accepted prediction/true ratios are approximately 0.743–1.346 for T1 and 0.724–1.380 for T2.
+Weight is excluded from the headline acceptance rule and reported separately. The historical
+assignment maps predictions independently to their nearest admissible GT; it does not retry
+another GT after a duplicate. The audit reports confidence-ordered one-to-one AP and
+maximum-cardinality gated strict accuracy separately, leaving historical values intact.
 
 ## The metrics
 
@@ -46,6 +50,11 @@ costs of the training loss. The weight is excluded from the test and reported se
   would care about.
 - **Precision, recall, F1 and errors** at one existence threshold per run. Errors are over
   true positives only, so they improve as recall falls and must be read next to the recall.
+
+Per-K AP now includes every prediction (including unmatched false positives) in the selected
+voxels. Older saved `stratified_map7.by_n_comp` values exclude those false positives and are
+conditional diagnostics. Weight-stratum AP still has that restriction and is explicitly
+labelled; use weight-resolved recall and gated matched errors for substantive comparisons.
 
 Every metric is also broken down by compartment count, because one-, two- and
 three-compartment voxels are very different problems and an aggregate describes none of
@@ -75,8 +84,11 @@ Three thresholds live in `results/` and mean different things:
 The reference retrained at four seeds gives the ruler: 0.81 pp on strict accuracy and
 0.0168 on mAP@7 ([configs/README.md](../configs/README.md)). `paired_tests.py` goes further
 where the data allows. Two runs score the same test voxels, so strict and count accuracy
-get McNemar's exact test and mAP gets a paired bootstrap over voxels, both Holm-Bonferroni
-corrected. All of it is computed from the stored ND records, so no model has to be run.
+get McNemar's exact test (Holm-corrected) and mAP gets a paired bootstrap over voxels (the
+intervals are not Holm-corrected). Existing paired tests use fixed thresholds 0.5/0.75 and do
+not establish significance for the new NNLS comparison at validation-calibrated thresholds.
+The four-seed range is descriptive variability, not a significance threshold. All of it is
+computed from stored ND records, so no model has to be run.
 
 ## Misnamed fields
 

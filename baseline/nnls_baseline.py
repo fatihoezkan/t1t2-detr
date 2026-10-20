@@ -22,6 +22,7 @@ Per voxel:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -219,6 +220,18 @@ def get_args_parser():
     return p
 
 
+def merge_run_info(previous, current):
+    """Preserve prior split provenance; refuse to mix incompatible runs in one directory."""
+    keys = ("data_root", "family", "n_samples", "reg", "chi2_factor", "lam", "n_grid",
+            "n_slots", "t1_range", "t2_range", "protocol_file", "protocol_sha256")
+    for key in keys:
+        if key in previous and previous[key] != current[key]:
+            raise ValueError(f"Existing run differs in {key}; use a new --run_name")
+    merged = {**previous, **current}
+    merged["splits"] = list(dict.fromkeys(previous.get("splits", []) + current["splits"]))
+    return merged
+
+
 def main(args):
     run = args.run_name or f"nnls_{args.reg}_g{args.n_grid}"
     out = os.path.join(args.out_dir, run)
@@ -231,6 +244,14 @@ def main(args):
     info = {k: _portable(v) if k.endswith(("_root", "_dir", "_file")) else v
             for k, v in vars(args).items()}
     info.update(method="nnls", n_atoms=n_atoms, ported_from="Endt DETR_T1T2 baseline/nnls_baseline.py")
+    with open(args.protocol_file, "rb") as fh:
+        info["protocol_sha256"] = hashlib.sha256(fh.read()).hexdigest()
+    info_path = os.path.join(out, "info.json")
+    previous = {}
+    if os.path.exists(info_path):
+        with open(info_path) as fh:
+            previous = json.load(fh)
+    info = merge_run_info(previous, info)
 
     for split in args.splits:
         S, T, n_comp, snr = load_split(args.data_root, args.family, split, args.n_samples or None)
@@ -238,16 +259,20 @@ def main(args):
         params, prob, lam, sec = run_split(S, cfg, args.workers)
         np.savez_compressed(os.path.join(out, f"{split}_predictions.npz"),
                             params=params, exist_prob=prob, trues=T, n_comp=n_comp, snr=snr,
-                            lam=lam, cpu_s=sec)
+                            lam=lam, worker_wall_s=sec, cpu_s=sec)  # cpu_s: deprecated alias
         info[split] = {"n_voxels": int(len(S)), "wall_s": round(time.time() - t0, 1),
                        "cpu_s_per_voxel": float(sec.mean()),
                        "lambda_median": float(np.median(lam)),
                        "peaks_per_voxel_mean": float((prob > 0).sum(1).mean())}
+        info[split].update(worker_wall_s_per_voxel=float(sec.mean()), workers=args.workers,
+                           signal_sha256=hashlib.sha256(S.tobytes()).hexdigest(),
+                           truth_sha256=hashlib.sha256(T.tobytes()).hexdigest(),
+                           timing_note="cpu_s is a legacy alias for worker wall time, not CPU time")
         print(f"{split}: {len(S)} voxels, {info[split]['wall_s']} s wall, "
-              f"{info[split]['cpu_s_per_voxel']:.3f} s/voxel cpu, "
+              f"{info[split]['worker_wall_s_per_voxel']:.3f} s/voxel worker wall, "
               f"{info[split]['peaks_per_voxel_mean']:.2f} peaks/voxel")
-    with open(os.path.join(out, "info.json"), "w") as fh:
-        json.dump(info, fh, indent=2, default=str)
+        with open(info_path, "w") as fh:
+            json.dump(info, fh, indent=2, default=str)
 
 
 if __name__ == "__main__":

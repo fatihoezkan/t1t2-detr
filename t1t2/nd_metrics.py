@@ -232,12 +232,12 @@ def calibrate_threshold_nd(query_outputs, trues, spans, tau=TAU_BASE,
 def stratified_map(query_outputs, trues, spans, tau=TAU_BASE, weight_bins=(0.3, 0.6)):
     """mAP restricted to subsets of the ground truth, by weight and by compartment count.
 
-    Ground truth is split by weight into small (below w_small), medium and large (at or above
-    w_large), and separately by the compartment count of its voxel. Within a stratum only its
-    own ground truth counts toward the total and only predictions assigned to it count as true
-    positives. Unassigned predictions are excluded entirely, since no stratum can claim them,
-    which makes the absolute values optimistic: compare strata or models with each other, not
-    against the global mAP.
+    Per-count AP retains ALL predictions in voxels of that count, including unmatched false
+    positives. Weight-stratum AP is a legacy conditional diagnostic: unmatched predictions
+    have no ground-truth weight and are excluded. It is NOT ordinary subgroup AP and must not
+    support an unqualified between-method superiority claim. Prefer weight-resolved recall
+    and matched errors with overall precision. Historical per-count diagnostics remain under
+    legacy_by_n_comp; old saved files are not rewritten automatically.
     """
     # records at threshold 0, so every prediction is ranked
     w_small, w_large = weight_bins
@@ -259,6 +259,8 @@ def stratified_map(query_outputs, trues, spans, tau=TAU_BASE, weight_bins=(0.3, 
         # same 101-point AP as map_101_from_records
         if total_gt == 0:
             return float("nan"), 0
+        if not conf:
+            return 0.0, total_gt
         conf = np.asarray(conf)
         keys = np.asarray(keys, dtype=np.int64)
         order = np.argsort(-conf, kind="stable")
@@ -277,7 +279,10 @@ def stratified_map(query_outputs, trues, spans, tau=TAU_BASE, weight_bins=(0.3, 
         return float(p_at.mean()), total_gt
 
     # strata: three weight bins and each compartment count
-    out = {"by_weight": {}, "by_n_comp": {}}
+    out = {"by_weight": {}, "by_n_comp": {}, "legacy_by_n_comp": {},
+           "definitions": {"by_weight": "conditional AP; excludes unmatched false positives",
+                           "by_n_comp": "voxel-subset AP; includes all false positives",
+                           "matching": "legacy independent nearest ground truth"}}
     for label, fn in [
         (f"w<{w_small}", lambda g, n: g[2] < w_small),
         (f"{w_small}<=w<{w_large}", lambda g, n: w_small <= g[2] < w_large),
@@ -286,8 +291,11 @@ def stratified_map(query_outputs, trues, spans, tau=TAU_BASE, weight_bins=(0.3, 
         m, n = _subset_map(fn)
         out["by_weight"][label] = {"map": m, "n_gt": n}
     for k in sorted({len(t) for t in trues}):
-        m, n = _subset_map(lambda g, nc, k=k: nc == k)
-        out["by_n_comp"][f"n_comp={k}"] = {"map": m, "n_gt": n}
+        ids = np.flatnonzero(n_gt == k)
+        m = map_101_from_records(recs, n_gt, voxel_ids=ids)[0]
+        out["by_n_comp"][f"n_comp={k}"] = {"map": m, "n_gt": int(n_gt[ids].sum())}
+        old_m, n = _subset_map(lambda g, nc, k=k: nc == k)
+        out["legacy_by_n_comp"][f"n_comp={k}"] = {"map": old_m, "n_gt": n}
     return out
 
 

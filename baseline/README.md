@@ -33,16 +33,25 @@ data:
 
 `score_nnls.py` applies the functions the DETR tables use: `nd_metrics.dataset_records`,
 `map_101_from_records`, `stratified_map` and `evaluation.threshold_sweep.score` / `score_by_k`.
-Two details differ from a DETR run and both are properties of the method, not choices:
+Two implementation details differ from a DETR run:
 
 * Empty slots are dropped (`exist_thresh = 1e-12`). A slot with zero fraction is not a prediction,
   whereas all ten DETR queries carry a genuine existence probability.
-* The threshold grid runs from 0.01 to 0.50. Confidence here is a signal fraction, so at three
-  compartments no true peak can exceed about 0.33 and the DETR grid (0.05 to 0.95 on a
-  probability) would discard correct answers by construction.
+* The threshold grid runs from 0.01 to 0.50. Confidence here is a signal fraction, often much
+  smaller than a DETR existence probability. Fractions need not be equal: 0.8/0.1/0.1 is a
+  valid three-compartment voxel. This is a search grid, not a mathematical bound.
 
 As for every arm, the operating point is calibrated on the validation split and applied unchanged
-to test, once for best strict voxel accuracy and once for best F1. mAP needs no threshold.
+to test, once for best strict voxel accuracy and once for best F1. mAP needs no operating
+threshold but depends on the method's confidence ranking. ND@7 means 7% of each log range,
+not 7% relative T1/T2 error; weight is excluded from the headline acceptance rule.
+
+Per-K AP now retains all predictions in the selected voxels. `by_weight` remains a legacy
+conditional diagnostic excluding unmatched false positives; prefer weight-resolved recall
+and matched errors alongside overall precision. Saved historical scores below are preserved.
+`compare_methods.py` refuses to mix old and new per-K AP definitions. Rescore every method
+before replacing historical comparison tables. The NNLS scorer reads parameter ranges from
+the run's `info.json`, so custom grids use their own log spans.
 
 ## Results
 
@@ -56,17 +65,16 @@ brackets for the two headline columns):
 | NNLS, grid 30 | 0.5957 | 0.6917 | 0.7781 | 0.09 | 53.29 % | 63.26 % |
 | NNLS, grid 50 | 0.6024 | 0.6936 | 0.7793 | 0.09 | 52.86 % | 63.10 % |
 
-Raising the grid from 771 to 2,149 atoms (15.8 % to 9.1 % quantisation per axis) moves mAP@7 by
-0.0019 and leaves the weight-stratified values unchanged to three decimals, so the classical
-result is converged rather than grid-limited.
+Raising the grid from 771 to 2,149 atoms moves stored mAP@7 by 0.0019. This is stability between
+two settings, not proof of convergence or absence of grid effects on individual voxels.
 
-The classical method beats the DETR reference on mAP at all three tolerances, by more than the
-four-seed spread, and the margin is widest at the strictest tolerance: when it finds a compartment
-it places it accurately. It is much weaker at deciding how many compartments a voxel holds (count
-accuracy 63 % against 76 %), which is the familiar failure mode of inverse Laplace inversion.
-`loss_uniform` beats it everywhere, and by the largest margin where the loss change helped: faint
-compartments (stratified mAP@7 0.6673 against 0.4446) and three-compartment voxels (0.7569 against
-0.6224).
+The stored NNLS mAP exceeds the reference at all three tolerances, but at tau=10 the gain
+(0.0084 for grid 50) is smaller than the reference's four-seed range (0.0097). Seed range is
+descriptive, not a significance test. NNLS count accuracy is about 63%, versus 76% for the
+reference. `loss_uniform` has higher aggregate mAP, strict and count accuracy than these NNLS
+runs; it loses count accuracy relative to the DETR reference. Historical conditional weight/K
+AP values cannot establish an unqualified subgroup superiority claim. The DETR theta displayed
+above is an average of per-seed operating points, not a common threshold.
 
 ## Running it
 
@@ -77,7 +85,11 @@ PYTHONPATH=.:datagen python baseline/compare_methods.py
 ```
 
 Outputs go to `results/nnls/<run>/`: `<split>_predictions.npz` (regenerated, not versioned),
-`info.json` with the settings and timings, and `nd_scores.json` with every metric.
+`info.json` with settings and timings, and `nd_scores.json` with every metric. Separate
+validation/test invocations preserve prior split metadata and reject incompatible settings
+under the same run name. `worker_wall_s` is elapsed time in a worker; `cpu_s` is its deprecated
+alias, not CPU time. `--n_samples` takes the first N rows in n1/n2/n3 order: use an explicitly
+balanced pilot rather than this flag for a multi-K comparison.
 
 Cost on an M3 Max with 12 workers and BLAS threads pinned to one per worker
 (`OMP_NUM_THREADS=1` and the OPENBLAS, MKL and VECLIB equivalents): 0.24 s per voxel at grid 30,
